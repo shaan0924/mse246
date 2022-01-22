@@ -6,7 +6,7 @@ create a folder on your local computer
 
 open terminal and navigate to that folder
 
-git clone https
+git clone https://github.com/
 
 ## Pull:
 
