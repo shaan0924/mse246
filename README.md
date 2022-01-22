@@ -6,7 +6,7 @@ create a folder on your local computer
 
 open terminal and navigate to that folder
 
-git clone https://github.com/
+follow these instructions: https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository
 
 ## Pull:
 
