@@ -136,3 +136,5 @@ ggplot(data=temp, aes(x=ApprovalFiscalYear, y= `Annual Default Rate`, group = Te
 #######################
 
 SP500 = getSymbols("^GSPC",from = "2005-01-01",to = "2009-12-31", periodicity = 'weekly', auto.assign = FALSE)
+
+FEDFUNDS = read.csv("FEDFUNDS.csv")
