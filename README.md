@@ -10,7 +10,7 @@ follow these instructions: https://docs.github.com/en/repositories/creating-and-
 
 ## Pull:
 
-git pull origin master
+git pull origin main
 
 (insert login details)
 
@@ -21,6 +21,6 @@ git add "insert file name"
 
 git commit -m "commitment message"
 
-git push origin master
+git push origin main
 
 (insert login details)
