@@ -4,13 +4,13 @@ library(quantmod)
 library(tidyverse)
 library(data.table)
 library("xlsx")
-setwd("/Users/jackparkin/Desktop/MS&E 246/Project/mse246")
-
-
+#setwd("/Users/jackparkin/Desktop/MS&E 246/Project/mse246")
+setwd("/Users/sihguat/Desktop/MSE_246/mse246")
 ############
 #Data Import
 ############
-
+#raw_data_xlxs = read_excel('SBA Loan data .xlsx')
+#write.csv(raw_data_xlxs,"SBA Loan data .csv", row.names = FALSE)
 raw_data = read.csv("SBA Loan data .csv", header = TRUE)
 
 #################
@@ -153,34 +153,53 @@ ggplot(data=temp, aes(x=ApprovalFiscalYear, y= `Annual Default Rate`, group = Te
 
 #?: AgeOfLoan, BorrowerRegion vs. State, ProjectRegion vs. State?
 
-
+############
+#IMPORTS
 ############
 #GDP Import
-
-####TO DO####
-
-############
+GDP = read.csv("GDP.csv")
 #FedFunds Import
-
 FEDFUNDS = read.csv("FEDFUNDS.csv")
-
-#############
 #SP500 Import
-
 SP500 = getSymbols("^GSPC",from = "1990-01-31",to = "2014-12-31", periodicity = 'monthly', auto.assign = FALSE)
+#CPI Import (Consumer Price Index for All Urban Consumers: All Items in U.S. City Average)
+CPI = read.csv("CPIAUCSL.csv")
+#Unemployment
+UnemploymentUSbyState = read.csv('StateUR.csv', header = TRUE)
+##############
+#Preprocessing
+##############
+raw_data = raw_data[!(raw_data$LoanStatus=="CANCLD" | raw_data$LoanStatus=="EXEMPT"),]
+#15 occurances of different states or NA thus delete those loans
+
+unidentified.states = unique(raw_data$ProjectState[!(raw_data$ProjectState %in% unique(UnemploymentUSbyState$State))])
+raw_data = raw_data[!(raw_data$ProjectState %in% unidentified.states),]
+
+unidentified.states.Borr = unique(raw_data$BorrState[!(raw_data$BorrState %in% unique(UnemploymentUSbyState$State))])
+###############
+#Missing Values
+
+#TO DO (Do we have to do a categorical value for each missing value?)
 
 ###################################
-#UnemploymentInBorrowerState Import
+#UnemploymentInProjectState
+###################################
+raw_data$ApprovalDate = as.Date(raw_data$ApprovalDate)
+temp.data = transform(raw_data, month.bin = cut(ApprovalDate, breaks = "month"))
+tempUR = rename(UnemploymentUSbyState, month.bin = DATE, ProjectState = State, URinProjectState = UR)
+temp = merge(x=temp.data,y=tempUR,by=c("ProjectState","month.bin"))
 
-####TO DO####
+###################################
+#UnemploymentInBorrowerState
+###################################
+tempUR.Borr = rename(UnemploymentUSbyState, month.bin = DATE, BorrState = State, URinBorrState = UR)
+temp = merge(x=temp,y=tempUR.Borr,by=c("BorrState","month.bin"))
+raw_data = subset(temp, select = -month.bin)
 
-##################################
-#UnemploymentInProjectState Import
-
-####TO DO####
 
 ###################
 #BinaryIntergerTerm
+###################
 raw_data$BinaryIntergerTerm[raw_data$TermInMonths %% 12 == 0] = 1
 raw_data$BinaryIntergerTerm[raw_data$TermInMonths %% 12 != 0] = 0
 
@@ -200,13 +219,6 @@ raw_data$BinaryBankStEqualBorrowerSt[raw_data$BorrState != raw_data$ThirdPartyLe
 
 raw_data$BinaryProjectStEqualBorrowerSt[raw_data$BorrState == raw_data$ProjectState] = 1
 raw_data$BinaryProjectStEqualBorrowerSt[raw_data$BorrState != raw_data$ProjectState] = 0
-
-##############
-#Preprocessing
-##############
-
-###############
-#Missing Values
 
 ##############
 #Normalization
