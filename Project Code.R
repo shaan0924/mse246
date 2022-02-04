@@ -196,6 +196,16 @@ tempUR.Borr = rename(UnemploymentUSbyState, month.bin = DATE, BorrState = State,
 temp = merge(x=temp,y=tempUR.Borr,by=c("BorrState","month.bin"))
 raw_data = subset(temp, select = -month.bin)
 
+###################################
+#SP500
+###################################
+tempSP00 = as.data.frame(SP500)
+tempSP500$month.bin = rownames(tempSP500)
+temp = rename(tempSP00,  = UR)=-
+temp = merge(x=temp,y=tempUR.Borr,by=c("BorrState","month.bin"))
+raw_data = subset(temp, select = -month.bin)
+
+
 
 ###################
 #BinaryIntergerTerm
