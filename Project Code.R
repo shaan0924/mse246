@@ -4,6 +4,7 @@ library(quantmod)
 library(tidyverse)
 library(data.table)
 library("xlsx")
+library("dplyr")
 #setwd("/Users/jackparkin/Desktop/MS&E 246/Project/mse246")
 setwd("/Users/sihguat/Desktop/MSE_246/mse246")
 ############
@@ -186,6 +187,7 @@ unidentified.states.Borr = unique(raw_data$BorrState[!(raw_data$BorrState %in% u
 ###################################
 raw_data$ApprovalDate = as.Date(raw_data$ApprovalDate)
 temp.data = transform(raw_data, month.bin = cut(ApprovalDate, breaks = "month"))
+
 tempUR = rename(UnemploymentUSbyState, month.bin = DATE, ProjectState = State, URinProjectState = UR)
 temp = merge(x=temp.data,y=tempUR,by=c("ProjectState","month.bin"))
 
@@ -194,6 +196,20 @@ temp = merge(x=temp.data,y=tempUR,by=c("ProjectState","month.bin"))
 ###################################
 tempUR.Borr = rename(UnemploymentUSbyState, month.bin = DATE, BorrState = State, URinBorrState = UR)
 temp = merge(x=temp,y=tempUR.Borr,by=c("BorrState","month.bin"))
+
+###################################
+#SP500
+###################################
+tempSP500 = as.data.frame(SP500)
+tempSP500$month.bin = rownames(tempSP500)
+tempSP500 = transmute(tempSP500,  month.bin = rownames(tempSP500), GSPC.price= GSPC.Adjusted)
+temp = merge(x=temp,y=tempSP500,by="month.bin")
+
+###################################
+#CPI
+###################################
+tempCPI = transmute(CPI, month.bin = DATE, CPI = CPIAUCSL)
+temp = merge(x=temp,y=tempCPI,by="month.bin")
 raw_data = subset(temp, select = -month.bin)
 
 
