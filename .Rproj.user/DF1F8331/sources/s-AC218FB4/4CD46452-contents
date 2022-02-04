@@ -1,0 +1,347 @@
+
+#install.packages("quantmod")
+library(quantmod)
+library(tidyverse)
+library(data.table)
+#install.packages("readxl")
+library("readxl")
+#install.packages("xlsx")
+library("xlsx")
+#install.packages("dplyr")
+library("plyr")
+library("dplyr")
+
+
+############
+#Data Import
+############
+setwd('~/Desktop/MSE_246/mse246-main_myedit')
+
+raw_data_xlxs = read_excel('SBA Loan data .xlsx')
+write.csv(raw_data_xlxs,"SBA Loan data .csv", row.names = FALSE)
+
+
+loan7aTo2015 = read_excel('SBA.xlsx',2)
+loans7a = rbind.fill(loans7aTo2000, loan7aTo2015)
+loan509 = read_excel('SBA.xlsx',3)
+
+#################
+#Data Exploration
+#################
+
+####################################
+# Quarterly Real GDP change vs. Quarterly Default Rate
+RealGDP = read.csv('RealGDP.csv', header = TRUE)
+temp = loans7a
+quarterDates = as.list(RealGDP$DATE)
+temp = transform(loans7a, bin_quarter = cut(ApprovalDate, breaks = "quarter", labels = head(quarterDates,-4)))
+
+
+CPI = read.csv('CPI.csv', header = TRUE)
+
+###########################################
+#Data Cleaning / Putting excel to csv 
+###########################################
+write.csv(SBA_loans,"SBA Loan data .csv", row.names = FALSE)
+###########################################
+#Data Manipulation / Additional Data Import
+###########################################
+
+#key continous: log(GrossApproval), log(ThirdPartyDollars), TermInMonths, log(GSP), log(FedFunds), log(SP500), UnemploymentInBorrowerState, UnemploymentInProjectState
+
+#key discrete: BusinessType, NAICS_Sector, DeliveryMethod, BinaryIntergerTerm, BinaryRepeatBorrower, BinaryBankStEqualBorrowerSt, BinaryProjectStEqualBorrowerSt, ApprovalFiscalYear, BorrowerRegion, ProjectRegion
+
+#To do: log(GSP),log(FedFunds), log(SP500), UnemploymentInBorrowerState, UnemploymentInProjectState, BinaryBankStEqualBorrowerSt, BinaryProjectStEqualBorrowerSt
+
+#?: AgeOfLoan, BorrowerRegion vs. State, ProjectRegion vs. State?
+
+
+############
+#GDP Import
+
+####TO DO####
+
+############
+#FedFunds Import
+
+FEDFUNDS = read.csv("FEDFUNDS.csv")
+
+#############
+#SP500 Import
+
+SP500 = getSymbols("^GSPC",from = "1990-01-31",to = "2014-12-31", periodicity = 'monthly', auto.assign = FALSE)
+
+###################################
+#UnemploymentInBorrowerState Import
+
+####TO DO####
+
+##################################
+#UnemploymentInProjectState Import
+
+####TO DO####
+
+###################
+#BinaryIntergerTerm
+raw_data$BinaryIntergerTerm[raw_data$TermInMonths %% 12 == 0] = 1
+raw_data$BinaryIntergerTerm[raw_data$TermInMonths %% 12 != 0] = 0
+
+#####################
+#BinaryRepeatBorrower
+temp = duplicated(raw_data$BorrName)
+raw_data$BinaryRepeatBorrower[temp == TRUE] = 1
+raw_data$BinaryRepeatBorrower[temp == FALSE] = 0
+
+############################
+#BinaryBankStEqualBorrowerSt
+
+raw_data$BinaryBankStEqualBorrowerSt[raw_data$BorrState == raw_data$CDC_State] = 1
+raw_data$BinaryBankStEqualBorrowerSt[raw_data$BorrState != raw_data$ThirdPartyLender_State] = 0
+###############################
+#BinaryProjectStEqualBorrowerSt
+
+raw_data$BinaryProjectStEqualBorrowerSt[raw_data$BorrState == raw_data$ProjectState] = 1
+raw_data$BinaryProjectStEqualBorrowerSt[raw_data$BorrState != raw_data$ProjectState] = 0
+
+##############
+#Preprocessing
+##############
+
+###############
+#Missing Values
+
+##############
+#Normalization
+
+#################
+#State csv maker
+UnemploymentAK = read.csv('AKUR.csv', header = TRUE)
+UnemploymentAK$State = "AK"
+UnemploymentAK = rename(UnemploymentAK,UR = AKUR)
+UnemploymentAL = read.csv('ALUR.csv', header = TRUE)
+UnemploymentAL$State = "AL"
+UnemploymentAL = rename(UnemploymentAL,UR = ALUR)
+UnemploymentUSbyState = rbind.fill(UnemploymentAK, UnemploymentAL)
+
+UnemploymentAR = read.csv('ARUR.csv', header = TRUE)
+UnemploymentAR$State = "AR"
+UnemploymentAR = rename(UnemploymentAR,UR = ARUR)
+UnemploymentUSbyState = rbind.fill(UnemploymentUSbyState, UnemploymentAR)
+
+UnemploymentAZ = read.csv('AZUR.csv', header = TRUE)
+UnemploymentAZ$State = "AZ"
+UnemploymentAZ = rename(UnemploymentAZ,UR = AZUR)
+UnemploymentUSbyState = rbind.fill(UnemploymentUSbyState, UnemploymentAZ)
+
+UnemploymentCA = read.csv('CAUR.csv', header = TRUE)
+UnemploymentCA$State = "CA"
+UnemploymentCA = rename(UnemploymentCA,UR = CAUR)
+UnemploymentUSbyState = rbind.fill(UnemploymentUSbyState, UnemploymentCA)
+
+UnemploymentCO = read.csv('COUR.csv', header = TRUE)
+UnemploymentCO$State = "CO"
+UnemploymentCO = rename(UnemploymentCO,UR = COUR)
+UnemploymentUSbyState = rbind.fill(UnemploymentUSbyState, UnemploymentCO)
+
+UnemploymentCT = read.csv('CTUR.csv', header = TRUE)
+UnemploymentCT$State = "CT"
+UnemploymentCT = rename(UnemploymentCT,UR = CTUR)
+UnemploymentUSbyState = rbind.fill(UnemploymentUSbyState, UnemploymentCT)
+
+UnemploymentDC = read.csv('DCUR.csv', header = TRUE)
+UnemploymentDC$State = "DC"
+UnemploymentDC = rename(UnemploymentDC,UR = DCUR)
+UnemploymentUSbyState = rbind.fill(UnemploymentUSbyState, UnemploymentDC)
+
+UnemploymentDE = read.csv('DEUR.csv', header = TRUE)
+UnemploymentDE$State = "DE"
+UnemploymentDE = rename(UnemploymentDE,UR = DEUR)
+UnemploymentUSbyState = rbind.fill(UnemploymentUSbyState, UnemploymentDE)
+
+UnemploymentFL = read.csv('FLUR.csv', header = TRUE)
+UnemploymentFL$State = "FL"
+UnemploymentFL = rename(UnemploymentFL,UR = FLUR)
+UnemploymentUSbyState = rbind.fill(UnemploymentUSbyState, UnemploymentFL)
+
+UnemploymentGA = read.csv('GAUR.csv', header = TRUE)
+UnemploymentGA$State = "GA"
+UnemploymentGA = rename(UnemploymentGA,UR = GAUR)
+UnemploymentUSbyState = rbind.fill(UnemploymentUSbyState, UnemploymentGA)
+
+UnemploymentHI = read.csv('HIUR.csv', header = TRUE)
+UnemploymentHI$State = "HI"
+UnemploymentHI = rename(UnemploymentHI,UR = HIUR)
+UnemploymentUSbyState = rbind.fill(UnemploymentUSbyState, UnemploymentHI)
+
+UnemploymentIA = read.csv('IAUR.csv', header = TRUE)
+UnemploymentIA$State = "IA"
+UnemploymentIA = rename(UnemploymentIA,UR = IAUR)
+UnemploymentUSbyState = rbind.fill(UnemploymentUSbyState, UnemploymentIA)
+
+UnemploymentID = read.csv('IDUR.csv', header = TRUE)
+UnemploymentID$State = "ID"
+UnemploymentID = rename(UnemploymentID,UR = IDUR)
+UnemploymentUSbyState = rbind.fill(UnemploymentUSbyState, UnemploymentID)
+
+UnemploymentIL = read.csv('ILUR.csv', header = TRUE)
+UnemploymentIL$State = "IL"
+UnemploymentIL = rename(UnemploymentIL,UR = ILUR)
+UnemploymentUSbyState = rbind.fill(UnemploymentUSbyState, UnemploymentIL)
+
+UnemploymentIN = read.csv('INUR.csv', header = TRUE)
+UnemploymentIN$State = "IN"
+UnemploymentIN = rename(UnemploymentIN,UR = INUR)
+UnemploymentUSbyState = rbind.fill(UnemploymentUSbyState, UnemploymentIN)
+
+UnemploymentKS = read.csv('KSUR.csv', header = TRUE)
+UnemploymentKS$State = "KS"
+UnemploymentKS = rename(UnemploymentKS,UR = KSUR)
+UnemploymentUSbyState = rbind.fill(UnemploymentUSbyState, UnemploymentKS)
+
+UnemploymentKY = read.csv('KYUR.csv', header = TRUE)
+UnemploymentKY$State = "KY"
+UnemploymentKY = rename(UnemploymentKY,UR = KYUR)
+UnemploymentUSbyState = rbind.fill(UnemploymentUSbyState, UnemploymentKY)
+
+UnemploymentLA = read.csv('LAUR.csv', header = TRUE)
+UnemploymentLA$State = "LA"
+UnemploymentLA = rename(UnemploymentLA,UR = LAUR)
+UnemploymentUSbyState = rbind.fill(UnemploymentUSbyState, UnemploymentLA)
+
+UnemploymentMA = read.csv('MAUR.csv', header = TRUE)
+UnemploymentMA$State = "MA"
+UnemploymentMA = rename(UnemploymentMA,UR = MAUR)
+UnemploymentUSbyState = rbind.fill(UnemploymentUSbyState, UnemploymentMA)
+
+UnemploymentMD = read.csv('MDUR.csv', header = TRUE)
+UnemploymentMD$State = "MD"
+UnemploymentMD = rename(UnemploymentMD,UR = MDUR)
+UnemploymentUSbyState = rbind.fill(UnemploymentUSbyState, UnemploymentMD)
+
+UnemploymentME = read.csv('MEUR.csv', header = TRUE)
+UnemploymentME$State = "ME"
+UnemploymentME = rename(UnemploymentME,UR = MEUR)
+UnemploymentUSbyState = rbind.fill(UnemploymentUSbyState, UnemploymentME)
+UnemploymentMI = read.csv('MIUR.csv', header = TRUE)
+UnemploymentMI$State = "MI"
+UnemploymentMI = rename(UnemploymentMI,UR = MIUR)
+UnemploymentUSbyState = rbind.fill(UnemploymentUSbyState, UnemploymentMI)
+UnemploymentMN = read.csv('MNUR.csv', header = TRUE)
+UnemploymentMN$State = "MN"
+UnemploymentMN = rename(UnemploymentMN,UR = MNUR)
+UnemploymentUSbyState = rbind.fill(UnemploymentUSbyState, UnemploymentMN)
+UnemploymentMO = read.csv('MOUR.csv', header = TRUE)
+UnemploymentMO$State = "MO"
+UnemploymentMO = rename(UnemploymentMO,UR = MOUR)
+UnemploymentUSbyState = rbind.fill(UnemploymentUSbyState, UnemploymentMO)
+UnemploymentMS = read.csv('MSUR.csv', header = TRUE)
+UnemploymentMS$State = "MS"
+UnemploymentMS = rename(UnemploymentMS,UR = MSUR)
+UnemploymentUSbyState = rbind.fill(UnemploymentUSbyState, UnemploymentMS)
+UnemploymentMT = read.csv('MTUR.csv', header = TRUE)
+UnemploymentMT$State = "MT"
+UnemploymentMT = rename(UnemploymentMT,UR = MTUR)
+UnemploymentUSbyState = rbind.fill(UnemploymentUSbyState, UnemploymentMT)
+UnemploymentNC = read.csv('NCUR.csv', header = TRUE)
+UnemploymentNC$State = "NC"
+UnemploymentNC = rename(UnemploymentNC,UR = NCUR)
+UnemploymentUSbyState = rbind.fill(UnemploymentUSbyState, UnemploymentNC)
+UnemploymentND = read.csv('NDUR.csv', header = TRUE)
+UnemploymentND$State = "ND"
+UnemploymentND = rename(UnemploymentND,UR = NDUR)
+UnemploymentUSbyState = rbind.fill(UnemploymentUSbyState, UnemploymentND)
+UnemploymentNE = read.csv('NEUR.csv', header = TRUE)
+UnemploymentNE$State = "NE"
+UnemploymentNE = rename(UnemploymentNE,UR = NEUR)
+UnemploymentUSbyState = rbind.fill(UnemploymentUSbyState, UnemploymentNE)
+UnemploymentNH = read.csv('NHUR.csv', header = TRUE)
+UnemploymentNH$State = "NH"
+UnemploymentNH = rename(UnemploymentNH,UR = NHUR)
+UnemploymentUSbyState = rbind.fill(UnemploymentUSbyState, UnemploymentNH)
+UnemploymentNJ = read.csv('NJUR.csv', header = TRUE)
+UnemploymentNJ$State = "NJ"
+UnemploymentNJ = rename(UnemploymentNJ,UR = NJUR)
+UnemploymentUSbyState = rbind.fill(UnemploymentUSbyState, UnemploymentNJ)
+UnemploymentNM = read.csv('NMUR.csv', header = TRUE)
+UnemploymentNM$State = "NM"
+UnemploymentNM = rename(UnemploymentNM,UR = NMUR)
+UnemploymentUSbyState = rbind.fill(UnemploymentUSbyState, UnemploymentNM)
+UnemploymentNV = read.csv('NVUR.csv', header = TRUE)
+UnemploymentNV$State = "NV"
+UnemploymentNV = rename(UnemploymentNV,UR = NVUR)
+UnemploymentUSbyState = rbind.fill(UnemploymentUSbyState, UnemploymentNV)
+UnemploymentNY = read.csv('NYUR.csv', header = TRUE)
+UnemploymentNY$State = "NY"
+UnemploymentNY = rename(UnemploymentNY,UR = NYUR)
+UnemploymentUSbyState = rbind.fill(UnemploymentUSbyState, UnemploymentNY)
+UnemploymentOH = read.csv('OHUR.csv', header = TRUE)
+UnemploymentOH$State = "OH"
+UnemploymentOH = rename(UnemploymentOH,UR = OHUR)
+UnemploymentUSbyState = rbind.fill(UnemploymentUSbyState, UnemploymentOH)
+UnemploymentOK = read.csv('OKUR.csv', header = TRUE)
+UnemploymentOK$State = "OK"
+UnemploymentOK = rename(UnemploymentOK,UR = OKUR)
+UnemploymentUSbyState = rbind.fill(UnemploymentUSbyState, UnemploymentOK)
+UnemploymentOR = read.csv('ORUR.csv', header = TRUE)
+UnemploymentOR$State = "OR"
+UnemploymentOR = rename(UnemploymentOR,UR = ORUR)
+UnemploymentUSbyState = rbind.fill(UnemploymentUSbyState, UnemploymentOR)
+UnemploymentPA = read.csv('PAUR.csv', header = TRUE)
+UnemploymentPA$State = "PA"
+UnemploymentPA = rename(UnemploymentPA,UR = PAUR)
+UnemploymentUSbyState = rbind.fill(UnemploymentUSbyState, UnemploymentPA)
+UnemploymentPR = read.csv('PRURN.csv', header = TRUE)
+UnemploymentPR$State = "PR"
+UnemploymentPR = rename(UnemploymentPR,UR = PRURN)
+UnemploymentUSbyState = rbind.fill(UnemploymentUSbyState, UnemploymentPR)
+UnemploymentRI = read.csv('RIUR.csv', header = TRUE)
+UnemploymentRI$State = "RI"
+UnemploymentRI = rename(UnemploymentRI,UR = RIUR)
+UnemploymentUSbyState = rbind.fill(UnemploymentUSbyState, UnemploymentRI)
+UnemploymentSC = read.csv('SCUR.csv', header = TRUE)
+UnemploymentSC$State = "SC"
+UnemploymentSC = rename(UnemploymentSC,UR = SCUR)
+UnemploymentUSbyState = rbind.fill(UnemploymentUSbyState, UnemploymentSC)
+
+UnemploymentSD = read.csv('SDUR.csv', header = TRUE)
+UnemploymentSD$State = "SD"
+UnemploymentSD = rename(UnemploymentSD,UR = SDUR)
+UnemploymentUSbyState = rbind.fill(UnemploymentUSbyState, UnemploymentSD)
+UnemploymentTN = read.csv('TNUR.csv', header = TRUE)
+UnemploymentTN$State = "TN"
+UnemploymentTN = rename(UnemploymentTN,UR = TNUR)
+UnemploymentUSbyState = rbind.fill(UnemploymentUSbyState, UnemploymentTN)
+UnemploymentTX = read.csv('TXUR.csv', header = TRUE)
+UnemploymentTX$State = "TX"
+UnemploymentTX = rename(UnemploymentTX,UR = TXUR)
+UnemploymentUSbyState = rbind.fill(UnemploymentUSbyState, UnemploymentTX)
+UnemploymentUT = read.csv('UTUR.csv', header = TRUE)
+UnemploymentUT$State = "UT"
+UnemploymentUT = rename(UnemploymentUT,UR = UTUR)
+UnemploymentUSbyState = rbind.fill(UnemploymentUSbyState, UnemploymentUT)
+UnemploymentVA = read.csv('VAUR.csv', header = TRUE)
+UnemploymentVA$State = "VA"
+UnemploymentVA = rename(UnemploymentVA,UR = VAUR)
+UnemploymentUSbyState = rbind.fill(UnemploymentUSbyState, UnemploymentVA)
+UnemploymentVT = read.csv('VTUR.csv', header = TRUE)
+UnemploymentVT$State = "VT"
+UnemploymentVT = rename(UnemploymentVT,UR = VTUR)
+UnemploymentUSbyState = rbind.fill(UnemploymentUSbyState, UnemploymentVT)
+UnemploymentWA = read.csv('WAUR.csv', header = TRUE)
+UnemploymentWA$State = "WA"
+UnemploymentWA = rename(UnemploymentWA,UR = WAUR)
+UnemploymentUSbyState = rbind.fill(UnemploymentUSbyState, UnemploymentWA)
+UnemploymentWI = read.csv('WIUR.csv', header = TRUE)
+UnemploymentWI$State = "WI"
+UnemploymentWI = rename(UnemploymentWI,UR = WIUR)
+UnemploymentUSbyState = rbind.fill(UnemploymentUSbyState, UnemploymentWI)
+UnemploymentWV = read.csv('WVUR.csv', header = TRUE)
+UnemploymentWV$State = "WV"
+UnemploymentWV = rename(UnemploymentWV,UR = WVUR)
+UnemploymentUSbyState = rbind.fill(UnemploymentUSbyState, UnemploymentWV)
+UnemploymentWY = read.csv('WYUR.csv', header = TRUE)
+UnemploymentWY$State = "WY"
+UnemploymentWY = rename(UnemploymentWY,UR = WYUR)
+UnemploymentUSbyState = rbind.fill(UnemploymentUSbyState, UnemploymentWY)
+
+write.csv(UnemploymentUSbyState, "StateUR.csv", row.names = FALSE)
