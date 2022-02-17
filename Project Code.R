@@ -249,7 +249,7 @@ raw_data$LogCPI = log(raw_data$CPI)
 
 #key discrete: "BusinessType", "NAICS_Sector", "DeliveryMethod", "BinaryIntergerTerm", "BinaryRepeatBorrower", "BinaryBankStEqualBorrowerSt", "BinaryProjectStEqualBorrowerSt", "ApprovalFiscalYear", "BorrowerRegion", "ProjectRegion"
 
-modified_data = raw_data[c("LogGrossApproval", "LogThirdPartyDollars", "TermInMonths", "LogGDP", "LogSP500", "LogFedFunds", "LogCPI", "URinProjectState", "URinBorrState", "BusinessType", "NAICS_Sector", "DeliveryMethod", "BinaryIntergerTerm", "BinaryRepeatBorrower", "BinaryBankStEqualBorrowerSt", "BinaryProjectStEqualBorrowerSt", "ApprovalFiscalYear", "BorrowerRegion", "ProjectRegion")]
+modified_data = raw_data[c("LogGrossApproval", "LogThirdPartyDollars", "TermInMonths", "LogGDP", "LogSP500", "LogFedFunds", "URinProjectState", "URinBorrState", "BusinessType", "DeliveryMethod", "BinaryIntergerTerm", "BinaryRepeatBorrower", "BinaryBankStEqualBorrowerSt", "BinaryProjectStEqualBorrowerSt", "ApprovalFiscalYear", "BorrState", "ProjectState")]
 
 modified_data$Default[raw_data$LoanStatus == "CHGOFF"] = 1
 modified_data$Default[raw_data$LoanStatus != "CHGOFF"] = 0
@@ -270,14 +270,14 @@ modified_data$URinBorrState = (modified_data$URinBorrState - mean(modified_data$
 ###############
 #Missing Values
 #Continous
-temp = modified_data[c("LogGrossApproval", "LogThirdPartyDollars", "TermInMonths", "LogGDP", "LogSP500", "LogFedFunds", "LogCPI", "URinProjectState", "URinBorrState")]
+temp = modified_data[c("LogGrossApproval", "LogThirdPartyDollars", "TermInMonths", "LogGDP", "LogSP500", "LogFedFunds", "URinProjectState", "URinBorrState")]
 temp[is.na(temp)] = 0
-modified_data[c("LogGrossApproval", "LogThirdPartyDollars", "TermInMonths", "LogGDP", "LogSP500", "LogFedFunds", "LogCPI", "URinProjectState", "URinBorrState")] = temp
+modified_data[c("LogGrossApproval", "LogThirdPartyDollars", "TermInMonths", "LogGDP", "LogSP500", "LogFedFunds", "URinProjectState", "URinBorrState")] = temp
 
 #Discrete
-temp = modified_data[c("BusinessType", "NAICS_Sector", "DeliveryMethod", "BinaryIntergerTerm", "BinaryRepeatBorrower", "BinaryBankStEqualBorrowerSt", "BinaryProjectStEqualBorrowerSt", "ApprovalFiscalYear", "BorrowerRegion", "ProjectRegion")]
+temp = modified_data[c("BusinessType", "NAICS_Sector", "DeliveryMethod", "BinaryIntergerTerm", "BinaryRepeatBorrower", "BinaryBankStEqualBorrowerSt", "BinaryProjectStEqualBorrowerSt", "ApprovalFiscalYear", "BorrState", "ProjectState")]
 temp[is.na(temp)] = "Blank"
-modified_data[c("BusinessType", "NAICS_Sector", "DeliveryMethod", "BinaryIntergerTerm", "BinaryRepeatBorrower", "BinaryBankStEqualBorrowerSt", "BinaryProjectStEqualBorrowerSt", "ApprovalFiscalYear", "BorrowerRegion", "ProjectRegion")] = temp
+modified_data[c("BusinessType", "NAICS_Sector", "DeliveryMethod", "BinaryIntergerTerm", "BinaryRepeatBorrower", "BinaryBankStEqualBorrowerSt", "BinaryProjectStEqualBorrowerSt", "ApprovalFiscalYear", "BorrState", "ProjectState")] = temp
 
 #################
 #Data Paritioning
@@ -288,3 +288,27 @@ test_size = nrow(modified_data) - train_size - validation_size
 train_data = modified_data[0:train_size,]
 validation_data = modified_data[(train_size+1):(train_size+validation_size),]
 test_data = modified_data[(train_size+validation_size+1):nrow(modified_data),]
+
+
+#################
+#Neural Net
+install.packages("neuralnet")
+library(neuralnet)
+set.seed(1)
+nn = neuralnet(Default~LogGrossApproval + LogThirdPartyDollars + TermInMonths + LogGDP
+               + LogSP500 + LogFedFunds 
+               + BusinessType + DeliveryMethod + BinaryIntergerTerm + BinaryRepeatBorrower
+               + BinaryBankStEqualBorrowerSt + BorrState
+               + ProjectState + NAICS_Sector, data=train_data, hidden=c(5,2), act.fct = "logistic", linear.output = FALSE)
+
+#To see the full architecture of the network
+plot(nn)
+
+#Test against validation data (returns list of probabilities)
+validate = compute(nn,validation_data)
+
+#Convert to binary classes
+validateprob <- validate$net.result
+validatepred <- ifelse(validateprob>0.5, 1, 0)
+
+
