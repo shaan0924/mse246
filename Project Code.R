@@ -5,6 +5,7 @@ library(tidyverse)
 library(data.table)
 library("xlsx")
 library("dplyr")
+library("Matrix")
 setwd("/Users/jackparkin/Desktop/MS&E 246/Project/mse246")
 #setwd("/Users/sihguat/Desktop/MSE_246/mse246")
 ############
@@ -367,6 +368,7 @@ for(i in 1:10){
 
 #Best L1 Hyperparameter
 best_L1_lambda_index = which.max(AUC_L1_validation)
+best_L1_lambda = model_L1$lambda[best_L1_lambda_index]
 best_L1_AUC = max(AUC_L1_validation)
 best_L1_AUC
 #0.6607889
@@ -374,6 +376,7 @@ best_model_L1_coef = as.matrix(coef(model_L1, s= model_L1$lambda[best_L1_lambda_
 
 #Best L2 Hyperparameter
 best_L2_lambda_index = which.max(AUC_L2_validation)
+best_L2_lambda = model_L2$lambda[best_L2_lambda_index]
 best_L2_AUC = max(AUC_L2_validation)
 best_L2_AUC
 #0.6566973
@@ -381,22 +384,49 @@ best_model_L2_coef = as.matrix(coef(model_L2, s= model_L2$lambda[best_L2_lambda_
 
 #Plotting best L1 & l2 coefficients
 best_L1_model_coeff_plot = qplot(y= best_model_L1_coef[,1])
-best_L1_model_coeff_plot + labs(title = "L1 Model Coeffcients", x= "Covariates", y= "Coeffcient Value")
+best_L1_model_coeff_plot + labs(title = "L1 Logistic Model Coeffcients", x= "Covariates", y= "Coeffcient Value")
 best_L2_model_coeff_plot = qplot(y= best_model_L2_coef[,1])
-best_L2_model_coeff_plot + labs(title = "L2 Model Coeffcients", x= "Covariates", y= "Coeffcient Value")
+best_L2_model_coeff_plot + labs(title = "L2 Logistic Model Coeffcients", x= "Covariates", y= "Coeffcient Value")
 
-#Testing best L1 model
+#Ensemble Training
+B = 100
+for (b in 1:B){
+  sample_indices = sample(nrow(x_train),nrow(x_train), replace = TRUE)
+  x_sample = x_train[sample_indices,]
+  y_sample = y_train[c(sample_indices)]
+  model_L1 = glmnet(x_sample, y_sample, alpha = 1, lambda = best_L1_lambda, family="binomial")
+  if (b == 1){
+    ensemble_coeff = coef(model_L1)
+  }
+  else{
+    ensemble_coeff = ensemble_coeff + coef(model_L1)
+  }
+}
+ensemble_coeff = ensemble_coeff/B
+for (i in 1:(length(ensemble_coeff)-1)){
+  if (i == 1){
+    model_L1$a0[1] = ensemble_coeff[i]
+  }
+  else {
+    model_L1$beta[i-1] = ensemble_coeff[i]
+  }
+}
+best_ensemble_model_L1_coef = as.matrix(coef(model_L1))
+best_ensemble_L1_model_coeff_plot = qplot(y= best_model_L1_coef[,1])
+best_ensemble_L1_model_coeff_plot + labs(title = "Ensemble L1 Logistic Model Coeffcients", x= "Covariates", y= "Coeffcient Value")
+
+
+#Testing best L1 ensemble model
 x_test = model.matrix(Default ~., test_data)[, -1]
-length(x_test[,1])
 x_test = cbind(x_test, "NAICS_SectorPublic Administration" = 0)
 x_test = cbind(x_test, "NAICS_SectorBlank" = 0)
 x_test = x_test[,order(colnames(x_test))]
 
-prediction_L1_test = predict(model_L1, newx = x_test, type = "response", s = model_L1$lambda[best_L1_lambda_index])
+prediction_L1_test = predict(model_L1, newx = x_test, type = "response")
 prediction_L1_test = prediction(prediction_L1_test, test_data$Default)
 auc = unlist(slot(performance(prediction_L1_test, 'auc'), 'y.values'))
 auc
-#0.5914064
+#0.6079187
 
 #Plotting ROCs
 roc_train = performance(prediction(prediction_L1_train[,best_L1_lambda_index], train_data$Default),"tpr","fpr")
