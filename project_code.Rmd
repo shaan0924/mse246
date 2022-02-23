@@ -14,6 +14,15 @@ library(tidyverse)
 library(data.table)
 library(readxl) 
 library(here) # Instead of setting WD with setwd, use the here() function for code transferrability between devices
+library(devtools)
+
+```
+
+```{r}
+# NOT WORKING - meant to provide us access to the Medical Expenditure Panel 
+# Survey Household Component Dataset. But the package installation process isn't working 
+# install_github("e-mitchell/meps_r_pkg/MEPS")
+# library(MEPS)
 ```
 
 
