@@ -46,6 +46,7 @@ UnemploymentUSbyState = read.csv('StateUR.csv', header = TRUE)
 
 
 # Data Exploration
+
 ## Gross Approval Frequencies and Annual Default Rate over time by Gross Approval Size
 
 Slicing the Data into gross approval ranges
@@ -346,7 +347,14 @@ raw_data %>%
 
 # Pre-Processing the Data for Modeling
 
+Data Cleaning - Dealing with states that are absent in the data and states in which there are no borrowers
 ```{r}
+raw_data1 <- raw_data
+
+raw_data1 %>% 
+  select(ApprovalDate) %>% 
+  mutate(date2 = as.Date(ApprovalDate, "%m/%d/%y"))
+  
 raw_data = raw_data[!(raw_data$LoanStatus=="CANCLD" | raw_data$LoanStatus=="EXEMPT"),]
 #15 occurances of different states or NA thus delete those loans
 
@@ -356,99 +364,196 @@ raw_data = raw_data[!(raw_data$ProjectState %in% unidentified.states),] #remove 
 #States not in raw_data$BorrState; aka, states in which there are no borrowers
 unidentified.states.Borr = unique(raw_data$BorrState[!(raw_data$BorrState %in% unique(UnemploymentUSbyState$State))]) 
 
-raw_data$ApprovalDate = as.Date(raw_data$ApprovalDate, "%m/%d/%y")
 temp.data <- 
   raw_data %>% 
-  mutate(month.bin = cut(ApprovalDate, breaks = "month"))
+  mutate(
+    ApprovalDate = as.Date(ApprovalDate),
+    month.bin = cut(ApprovalDate, breaks = "month")
+  )
+```
 
-temp.data = transform(raw_data, month.bin = cut(ApprovalDate, breaks = "month"))
-
+## Addition of Unemployment Statistics at the State Level by Month 
+```{r}
 tempUR = rename(UnemploymentUSbyState, month.bin = DATE, ProjectState = State, URinProjectState = UR)
 temp = merge(x=temp.data,y=tempUR,by=c("ProjectState","month.bin"))
-```
-###################################
-##UnemploymentInBorrowerState
+
 tempUR.Borr = rename(UnemploymentUSbyState, month.bin = DATE, BorrState = State, URinBorrState = UR)
 temp = merge(x=temp,y=tempUR.Borr,by=c("BorrState","month.bin"))
+```
 
-###################################
-##GDP
-tempGDP = transmute(GDP, month.bin = DATE, GDP = GDP)
-tempGDP$quarter.bin = paste("Q4", substring(tempGDP$month.bin, 0, 4))
-tempGDP$quarter.bin[as.numeric(substring(tempGDP$month.bin, 6, 7)) < 10] = paste("Q3", substring(tempGDP$month.bin[as.numeric(substring(tempGDP$month.bin, 6, 7)) < 10], 0, 4))
-tempGDP$quarter.bin[as.numeric(substring(tempGDP$month.bin, 6, 7)) < 7] = paste("Q2", substring(tempGDP$month.bin[as.numeric(substring(tempGDP$month.bin, 6, 7)) < 7], 0, 4))
-tempGDP$quarter.bin[as.numeric(substring(tempGDP$month.bin, 6, 7)) < 4] = paste("Q1", substring(tempGDP$month.bin[as.numeric(substring(tempGDP$month.bin, 6, 7)) < 4], 0, 4))
-tempGDP = subset(tempGDP, select = -month.bin)
+## Addition of GDP by Quarter
+```{r}
+tempGDP <- 
+  transmute(GDP, month.bin = DATE, GDP = GDP) %>% 
+  mutate(
+    quarter.bin =
+      case_when(
+        as.numeric(substring(month.bin, 6, 7)) < 10 & as.numeric(substring(month.bin, 6, 7)) >= 7  ~ paste("Q3", substring(month.bin, 0, 4)),
+        as.numeric(substring(month.bin, 6, 7)) < 7 & as.numeric(substring(month.bin, 6, 7)) >= 4   ~ paste("Q2", substring(month.bin, 0, 4)),
+        as.numeric(substring(month.bin, 6, 7)) < 4                                                 ~ paste("Q1", substring(month.bin, 0, 4)),
+        TRUE                                                                                       ~ paste("Q4", substring(month.bin, 0, 4)),
+      )
+  )
 
-temp$quarter.bin = paste("Q4", substring(temp$ApprovalDate, 0, 4))
-temp$quarter.bin[as.numeric(substring(temp$ApprovalDate, 6, 7)) < 10] = paste("Q3", substring(temp$ApprovalDate[as.numeric(substring(temp$ApprovalDate, 6, 7)) < 10], 0, 4))
-temp$quarter.bin[as.numeric(substring(temp$ApprovalDate, 6, 7)) < 7] = paste("Q2", substring(temp$ApprovalDate[as.numeric(substring(temp$ApprovalDate, 6, 7)) < 7], 0, 4))
-temp$quarter.bin[as.numeric(substring(temp$ApprovalDate, 6, 7)) < 4] = paste("Q1", substring(temp$ApprovalDate[as.numeric(substring(temp$ApprovalDate, 6, 7)) < 4], 0, 4))
+temp <- 
+  temp %>% 
+  mutate(
+    quarter.bin =
+      case_when(
+        as.numeric(substring(ApprovalDate, 6, 7)) < 10 & as.numeric(substring(ApprovalDate, 6, 7)) >= 7  ~ paste("Q3", substring(ApprovalDate, 0, 4)),
+        as.numeric(substring(ApprovalDate, 6, 7)) < 7 & as.numeric(substring(ApprovalDate, 6, 7)) >= 4   ~ paste("Q2", substring(ApprovalDate, 0, 4)),
+        as.numeric(substring(ApprovalDate, 6, 7)) < 4                                                    ~ paste("Q1", substring(ApprovalDate, 0, 4)),
+        TRUE                                                                                             ~ paste("Q4", substring(ApprovalDate, 0, 4)),
+      )
+  ) %>% 
+  merge(y = tempGDP,by="quarter.bin") %>% 
+  subset(select = -quarter.bin) %>% 
+  subset(select = -month.bin.y) %>% 
+  rename("month.bin" = month.bin.x)
 
-temp = merge(x=temp,y=tempGDP,by="quarter.bin")
-temp = subset(temp, select = -quarter.bin)
+```
 
-###################################
-##SP500
+## Addition of S&P 500 Data by Month
+```{r}
 tempSP500 = as.data.frame(SP500)
 tempSP500$month.bin = rownames(tempSP500)
 tempSP500 = transmute(tempSP500,  month.bin = rownames(tempSP500), GSPC.price= GSPC.Adjusted)
-temp = merge(x=temp,y=tempSP500,by="month.bin")
+temp = merge(x = temp, y = tempSP500,by = "month.bin")
+```
 
-###################################
-##Fed Funds
+## Addition of Fed Funds by Month
+```{r}
 tempFedFunds = transmute(FEDFUNDS, month.bin = DATE, FedFunds = FEDFUNDS)
 temp = merge(x=temp,y=tempFedFunds,by="month.bin")
+```
 
-###################################
-##CPI
+
+## Addition of CPI by Month
+```{r}
 tempCPI = transmute(CPI, month.bin = DATE, CPI = CPIAUCSL)
 temp = merge(x=temp,y=tempCPI,by="month.bin")
 raw_data = subset(temp, select = -month.bin)
+```
 
-###################
-##BinaryIntergerTerm
+## Addition of a Binary Term for Loans whose term is evenly divisible by 12 - BinaryIntergerTerm
+```{r}
+# Is the term in months evenly divisible by 12?
 raw_data$BinaryIntergerTerm[raw_data$TermInMonths %% 12 == 0] = 1
 raw_data$BinaryIntergerTerm[raw_data$TermInMonths %% 12 != 0] = 0
+```
 
-#####################
-##BinaryRepeatBorrower
+## Addition of a Binary term for repeat borrowers - BinaryRepeatBorrower
+```{r}
 temp = duplicated(raw_data$BorrName)
-raw_data$BinaryRepeatBorrower[temp == TRUE] = 1
+raw_data$BinaryRepeatBorrower[temp == TRUE] = 1 
 raw_data$BinaryRepeatBorrower[temp == FALSE] = 0
+```
 
-############################
 ##BinaryBankStEqualBorrowerSt
-
+```{r}
+# QUESTION: what does this do??
 raw_data$BinaryBankStEqualBorrowerSt[as.character(raw_data$BorrState) == as.character(raw_data$CDC_State)] = 1
 raw_data$BinaryBankStEqualBorrowerSt[as.character(raw_data$BorrState)!= as.character(raw_data$CDC_State)] = 0
+```
 
-###############################
 ##BinaryProjectStEqualBorrowerSt
-
+```{r}
+# QUESTION: what does this do??
 raw_data$BinaryProjectStEqualBorrowerSt[as.character(raw_data$BorrState) == as.character(raw_data$ProjectState)] = 1
 raw_data$BinaryProjectStEqualBorrowerSt[as.character(raw_data$BorrState) != as.character(raw_data$ProjectState)] = 0
+```
 
-###############################
-##Modification
-##key continous: "LogGrossApproval", "LogThirdPartyDollars", "TermInMonths", "LogGDP", "LogSP500", "LogFedFunds", "LogCPI", "URinProjectState", "URinBorrState"
+## Modifying Key Continous Variables to Log form: "LogGrossApproval", "LogThirdPartyDollars", "TermInMonths", "LogGDP", "LogSP500", "LogFedFunds", "LogCPI", "URinProjectState", "URinBorrState"
+```{r}
 raw_data$LogGrossApproval = log(raw_data$GrossApproval)
 raw_data$LogThirdPartyDollars = log(raw_data$ThirdPartyDollars)
 raw_data$LogGDP = log(raw_data$GDP)
 raw_data$LogSP500 = log(raw_data$GSPC.price)
 raw_data$LogFedFunds = log(raw_data$FedFunds)
 raw_data$LogCPI = log(raw_data$CPI)
+```
 
-## key discrete: "BusinessType", "NAICS_Sector", "DeliveryMethod", "BinaryIntergerTerm", "BinaryRepeatBorrower", "BinaryBankStEqualBorrowerSt", "BinaryProjectStEqualBorrowerSt", "ApprovalFiscalYear", "BorrowerRegion", "ProjectRegion"
+## Stitching Together Model Data and Adding Binary Default Variable: "BusinessType", "NAICS_Sector", "DeliveryMethod", "BinaryIntergerTerm", "BinaryRepeatBorrower", "BinaryBankStEqualBorrowerSt", "BinaryProjectStEqualBorrowerSt", "ApprovalFiscalYear", "BorrowerRegion", "ProjectRegion"
 
+```{r}
 modified_data = raw_data[c("LogGrossApproval", "LogThirdPartyDollars", "TermInMonths", "LogGDP", "LogSP500", "LogFedFunds", "LogCPI", "URinProjectState", "URinBorrState", "BusinessType", "NAICS_Sector", "DeliveryMethod", "BinaryIntergerTerm", "BinaryRepeatBorrower", "BinaryBankStEqualBorrowerSt", "BinaryProjectStEqualBorrowerSt", "ApprovalFiscalYear", "BorrowerRegion", "ProjectRegion")]
 
 modified_data$Default[raw_data$LoanStatus == "CHGOFF"] = 1
 modified_data$Default[raw_data$LoanStatus != "CHGOFF"] = 0
+```
 
-##############
 ## Normalization
+```{r}
+modified_data_test <- 
+
 c = 0.1
+
+modified_data <- 
+  modified_data %>% 
+  mutate(
+    across(
+      .cols = 
+        c(
+          LogGrossApproval, 
+          LogThirdPartyDollars,
+          TermInMonths,
+          LogGDP,
+          LogSP500,
+          LogFedFunds,
+          LogCPI,
+          URinProjectState,
+          URinBorrState
+        ),
+      .fns = ~ (. - mean(., na.rm = TRUE)) / (c + sd(., na.rm = TRUE))
+    )
+  )
+```
+
+## Dealing with Missing Values
+### Continous Variables
+```{r}
+temp = modified_data[c("LogGrossApproval", "LogThirdPartyDollars", "TermInMonths", "LogGDP", "LogSP500", "LogFedFunds", "LogCPI", "URinProjectState", "URinBorrState")]
+temp[is.na(temp)] = 0
+modified_data[c("LogGrossApproval", "LogThirdPartyDollars", "TermInMonths", "LogGDP", "LogSP500", "LogFedFunds", "LogCPI", "URinProjectState", "URinBorrState")] = temp
+```
+
+
+### Discrete Variables
+```{r}
+temp = modified_data[c("BusinessType", "NAICS_Sector", "DeliveryMethod", "BinaryIntergerTerm", "BinaryRepeatBorrower", "BinaryBankStEqualBorrowerSt", "BinaryProjectStEqualBorrowerSt", "ApprovalFiscalYear", "BorrowerRegion", "ProjectRegion")]
+temp[is.na(temp)] = "Blank"
+modified_data[c("BusinessType", "NAICS_Sector", "DeliveryMethod", "BinaryIntergerTerm", "BinaryRepeatBorrower", "BinaryBankStEqualBorrowerSt", "BinaryProjectStEqualBorrowerSt", "ApprovalFiscalYear", "BorrowerRegion", "ProjectRegion")] = temp
+```
+
+
+
+## Data Paritioning
+```{r}
+train_size = round((nrow(modified_data)/10)*7, 0)
+validation_size = round((nrow(modified_data)/10), 0)
+test_size = nrow(modified_data) - train_size - validation_size
+
+train_data = modified_data[0:train_size,]
+validation_data = modified_data[(train_size+1):(train_size+validation_size),]
+test_data = modified_data[(train_size+validation_size+1):nrow(modified_data),]
+```
+
+# Extra Code
+```{r}
+# tempGDP$quarter.bin = paste("Q4", substring(tempGDP$month.bin, 0, 4))
+# tempGDP$quarter.bin[as.numeric(substring(tempGDP$month.bin, 6, 7)) < 10] = paste("Q3", substring(tempGDP$month.bin[as.numeric(substring(tempGDP$month.bin, 6, 7)) < 10], 0, 4))
+# tempGDP$quarter.bin[as.numeric(substring(tempGDP$month.bin, 6, 7)) < 7] = paste("Q2", substring(tempGDP$month.bin[as.numeric(substring(tempGDP$month.bin, 6, 7)) < 7], 0, 4))
+# tempGDP$quarter.bin[as.numeric(substring(tempGDP$month.bin, 6, 7)) < 4] = paste("Q1", substring(tempGDP$month.bin[as.numeric(substring(tempGDP$month.bin, 6, 7)) < 4], 0, 4))
+# tempGDP = subset(tempGDP, select = -month.bin)
+# 
+# temp$quarter.bin = paste("Q4", substring(temp$ApprovalDate, 0, 4))
+# temp$quarter.bin[as.numeric(substring(temp$ApprovalDate, 6, 7)) < 10] = paste("Q3", substring(temp$ApprovalDate[as.numeric(substring(temp$ApprovalDate, 6, 7)) < 10], 0, 4))
+# temp$quarter.bin[as.numeric(substring(temp$ApprovalDate, 6, 7)) < 7] = paste("Q2", substring(temp$ApprovalDate[as.numeric(substring(temp$ApprovalDate, 6, 7)) < 7], 0, 4))
+# temp$quarter.bin[as.numeric(substring(temp$ApprovalDate, 6, 7)) < 4] = paste("Q1", substring(temp$ApprovalDate[as.numeric(substring(temp$ApprovalDate, 6, 7)) < 4], 0, 4))
+# 
+# temp = merge(x=temp,y=tempGDP,by="quarter.bin")
+# temp = subset(temp, select = -quarter.bin)
+
 modified_data$LogGrossApproval = (modified_data$LogGrossApproval - mean(modified_data$LogGrossApproval))/(c + sd(modified_data$LogGrossApproval))
 modified_data$LogThirdPartyDollars = (modified_data$LogThirdPartyDollars - mean(modified_data$LogThirdPartyDollars))/(c + sd(modified_data$LogThirdPartyDollars))
 modified_data$TermInMonths = (modified_data$TermInMonths - mean(modified_data$TermInMonths))/(c + sd(modified_data$TermInMonths))
@@ -458,25 +563,5 @@ modified_data$LogFedFunds = (modified_data$LogFedFunds - mean(modified_data$LogF
 modified_data$LogCPI = (modified_data$LogCPI - mean(modified_data$LogCPI))/(c + sd(modified_data$LogCPI))
 modified_data$URinProjectState = (modified_data$URinProjectState - mean(modified_data$URinProjectState))/(c + sd(modified_data$URinProjectState))
 modified_data$URinBorrState = (modified_data$URinBorrState - mean(modified_data$URinBorrState))/(c + sd(modified_data$URinBorrState))
+```
 
-###############
-## Missing Values
-## Continous
-temp = modified_data[c("LogGrossApproval", "LogThirdPartyDollars", "TermInMonths", "LogGDP", "LogSP500", "LogFedFunds", "LogCPI", "URinProjectState", "URinBorrState")]
-temp[is.na(temp)] = 0
-modified_data[c("LogGrossApproval", "LogThirdPartyDollars", "TermInMonths", "LogGDP", "LogSP500", "LogFedFunds", "LogCPI", "URinProjectState", "URinBorrState")] = temp
-
-## Discrete
-temp = modified_data[c("BusinessType", "NAICS_Sector", "DeliveryMethod", "BinaryIntergerTerm", "BinaryRepeatBorrower", "BinaryBankStEqualBorrowerSt", "BinaryProjectStEqualBorrowerSt", "ApprovalFiscalYear", "BorrowerRegion", "ProjectRegion")]
-temp[is.na(temp)] = "Blank"
-modified_data[c("BusinessType", "NAICS_Sector", "DeliveryMethod", "BinaryIntergerTerm", "BinaryRepeatBorrower", "BinaryBankStEqualBorrowerSt", "BinaryProjectStEqualBorrowerSt", "ApprovalFiscalYear", "BorrowerRegion", "ProjectRegion")] = temp
-
-#################
-## Data Paritioning
-train_size = round((nrow(modified_data)/10)*7, 0)
-validation_size = round((nrow(modified_data)/10), 0)
-test_size = nrow(modified_data) - train_size - validation_size
-
-train_data = modified_data[0:train_size,]
-validation_data = modified_data[(train_size+1):(train_size+validation_size),]
-test_data = modified_data[(train_size+validation_size+1):nrow(modified_data),]
