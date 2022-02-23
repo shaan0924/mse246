@@ -259,8 +259,8 @@ temp %>%
   ) %>% 
   ggplot(
   aes(
-    x=ApprovalFiscalYear, 
-    y= `Annual Default Rate`, 
+    x = ApprovalFiscalYear, 
+    y = `Annual Default Rate`, 
     group = NAICS_Sector, color = NAICS_Sector)
   ) + 
   geom_point() + 
@@ -316,8 +316,15 @@ raw_data$NAICS_Sector[substring(raw_data$NaicsCode, 1, 2) == "48" | substring(ra
 raw_data$NAICS_Sector[substring(raw_data$NaicsCode, 1, 2) == "51"] = "Information"
 raw_data$NAICS_Sector[substring(raw_data$NaicsCode, 1, 2) == "52"] = "Finance & Insurance"
 
-temp = raw_data %>% drop_na(NAICS_Sector) %>% group_by(NAICS_Sector) %>% summarise("Volume" = sum(GrossApproval))
-ggplot(data=temp, aes(x=NAICS_Sector, y=Volume, color = NAICS_Sector)) + geom_bar(stat="identity") + ggtitle("Total Loan Volume by NAICS Sector") + xlab("NAICS Sector") + ylab("Total Loan Volume")
+raw_data %>% 
+  drop_na(NAICS_Sector) %>% 
+  group_by(NAICS_Sector) %>% 
+  summarise("Volume" = sum(GrossApproval)) %>% 
+  ggplot(aes(x = NAICS_Sector, y=Volume, color = NAICS_Sector)) + 
+  geom_bar(stat = "identity") + 
+  ggtitle("Total Loan Volume by NAICS Sector") + 
+  xlab("NAICS Sector") + 
+  ylab("Total Loan Volume")
 ```
 
 Term Length vs. Annual Default Rate
@@ -440,7 +447,7 @@ temp = merge(x=temp,y=tempFedFunds,by="month.bin")
 ## Addition of CPI by Month
 ```{r}
 tempCPI = transmute(CPI, month.bin = DATE, CPI = CPIAUCSL)
-temp = merge(x=temp,y=tempCPI,by="month.bin")
+temp = merge(x = temp, y = tempCPI,by = "month.bin")
 raw_data = subset(temp, select = -month.bin)
 ```
 
@@ -526,15 +533,12 @@ temp[is.na(temp)] = 0
 modified_data[c("LogGrossApproval", "LogThirdPartyDollars", "TermInMonths", "LogGDP", "LogSP500", "LogFedFunds", "LogCPI", "URinProjectState", "URinBorrState")] = temp
 ```
 
-
 ### Discrete Variables
 ```{r}
 temp = modified_data[c("BusinessType", "NAICS_Sector", "DeliveryMethod", "BinaryIntergerTerm", "BinaryRepeatBorrower", "BinaryBankStEqualBorrowerSt", "BinaryProjectStEqualBorrowerSt", "ApprovalFiscalYear", "BorrowerRegion", "ProjectRegion")]
 temp[is.na(temp)] = "Blank"
 modified_data[c("BusinessType", "NAICS_Sector", "DeliveryMethod", "BinaryIntergerTerm", "BinaryRepeatBorrower", "BinaryBankStEqualBorrowerSt", "BinaryProjectStEqualBorrowerSt", "ApprovalFiscalYear", "BorrowerRegion", "ProjectRegion")] = temp
 ```
-
-
 
 ## Data Paritioning
 ```{r}
@@ -545,32 +549,5 @@ test_size = nrow(modified_data) - train_size - validation_size
 train_data = modified_data[0:train_size,]
 validation_data = modified_data[(train_size+1):(train_size+validation_size),]
 test_data = modified_data[(train_size+validation_size+1):nrow(modified_data),]
-```
-
-# Extra Code
-```{r}
-# tempGDP$quarter.bin = paste("Q4", substring(tempGDP$month.bin, 0, 4))
-# tempGDP$quarter.bin[as.numeric(substring(tempGDP$month.bin, 6, 7)) < 10] = paste("Q3", substring(tempGDP$month.bin[as.numeric(substring(tempGDP$month.bin, 6, 7)) < 10], 0, 4))
-# tempGDP$quarter.bin[as.numeric(substring(tempGDP$month.bin, 6, 7)) < 7] = paste("Q2", substring(tempGDP$month.bin[as.numeric(substring(tempGDP$month.bin, 6, 7)) < 7], 0, 4))
-# tempGDP$quarter.bin[as.numeric(substring(tempGDP$month.bin, 6, 7)) < 4] = paste("Q1", substring(tempGDP$month.bin[as.numeric(substring(tempGDP$month.bin, 6, 7)) < 4], 0, 4))
-# tempGDP = subset(tempGDP, select = -month.bin)
-# 
-# temp$quarter.bin = paste("Q4", substring(temp$ApprovalDate, 0, 4))
-# temp$quarter.bin[as.numeric(substring(temp$ApprovalDate, 6, 7)) < 10] = paste("Q3", substring(temp$ApprovalDate[as.numeric(substring(temp$ApprovalDate, 6, 7)) < 10], 0, 4))
-# temp$quarter.bin[as.numeric(substring(temp$ApprovalDate, 6, 7)) < 7] = paste("Q2", substring(temp$ApprovalDate[as.numeric(substring(temp$ApprovalDate, 6, 7)) < 7], 0, 4))
-# temp$quarter.bin[as.numeric(substring(temp$ApprovalDate, 6, 7)) < 4] = paste("Q1", substring(temp$ApprovalDate[as.numeric(substring(temp$ApprovalDate, 6, 7)) < 4], 0, 4))
-# 
-# temp = merge(x=temp,y=tempGDP,by="quarter.bin")
-# temp = subset(temp, select = -quarter.bin)
-
-modified_data$LogGrossApproval = (modified_data$LogGrossApproval - mean(modified_data$LogGrossApproval))/(c + sd(modified_data$LogGrossApproval))
-modified_data$LogThirdPartyDollars = (modified_data$LogThirdPartyDollars - mean(modified_data$LogThirdPartyDollars))/(c + sd(modified_data$LogThirdPartyDollars))
-modified_data$TermInMonths = (modified_data$TermInMonths - mean(modified_data$TermInMonths))/(c + sd(modified_data$TermInMonths))
-modified_data$LogGDP = (modified_data$LogGDP - mean(modified_data$LogGDP))/(c + sd(modified_data$LogGDP))
-modified_data$LogSP500 = (modified_data$LogSP500 - mean(modified_data$LogSP500))/(c + sd(modified_data$LogSP500))
-modified_data$LogFedFunds = (modified_data$LogFedFunds - mean(modified_data$LogFedFunds))/(c + sd(modified_data$LogFedFunds))
-modified_data$LogCPI = (modified_data$LogCPI - mean(modified_data$LogCPI))/(c + sd(modified_data$LogCPI))
-modified_data$URinProjectState = (modified_data$URinProjectState - mean(modified_data$URinProjectState))/(c + sd(modified_data$URinProjectState))
-modified_data$URinBorrState = (modified_data$URinBorrState - mean(modified_data$URinBorrState))/(c + sd(modified_data$URinBorrState))
 ```
 
