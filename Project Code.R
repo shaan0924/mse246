@@ -1,12 +1,14 @@
-
+#install.packages("fastDummies")
 library(lubridate)
 library(quantmod)
 library(tidyverse)
 library(data.table)
 library("xlsx")
 library("dplyr")
-setwd("/Users/jackparkin/Desktop/MS&E 246/Project/mse246")
-#setwd("/Users/sihguat/Desktop/MSE_246/mse246")
+library("Matrix")
+library(fastDummies)
+#setwd("/Users/jackparkin/Desktop/MS&E 246/Project/mse246")
+setwd("/Users/sihguat/Desktop/MSE_246/mse246")
 ############
 #Data Import
 ############
@@ -168,7 +170,8 @@ unidentified.states.Borr = unique(raw_data$BorrState[!(raw_data$BorrState %in% u
 
 ###################################
 #UnemploymentInProjectState
-raw_data$ApprovalDate = as.Date(raw_data$ApprovalDate, "%m/%d/%y")
+# MIGHT NEED TO USE THIS INSTEAD - raw_data$ApprovalDate = as.Date(raw_data$ApprovalDate, "%m/%d/%y")
+raw_data$ApprovalDate = as.Date(raw_data$ApprovalDate)
 temp.data = transform(raw_data, month.bin = cut(ApprovalDate, breaks = "month"))
 
 tempUR = rename(UnemploymentUSbyState, month.bin = DATE, ProjectState = State, URinProjectState = UR)
@@ -239,45 +242,46 @@ raw_data$BinaryProjectStEqualBorrowerSt[as.character(raw_data$BorrState) != as.c
 
 ###############################
 #Modification
-#key continous: "LogGrossApproval", "LogThirdPartyDollars", "TermInMonths", "LogGDP", "LogSP500", "LogFedFunds", "LogCPI", "URinProjectState", "URinBorrState"
 raw_data$LogGrossApproval = log(raw_data$GrossApproval)
-raw_data$LogThirdPartyDollars = log(raw_data$ThirdPartyDollars)
+# NOT CONTINOUS -> raw_data$LogThirdPartyDollars = log(raw_data$ThirdPartyDollars)
 raw_data$LogGDP = log(raw_data$GDP)
 raw_data$LogSP500 = log(raw_data$GSPC.price)
 raw_data$LogFedFunds = log(raw_data$FedFunds)
 raw_data$LogCPI = log(raw_data$CPI)
 
-#key discrete: "BusinessType", "NAICS_Sector", "DeliveryMethod", "BinaryIntergerTerm", "BinaryRepeatBorrower", "BinaryBankStEqualBorrowerSt", "BinaryProjectStEqualBorrowerSt", "ApprovalFiscalYear", "BorrowerRegion", "ProjectRegion"
-
-modified_data = raw_data[c("LogGrossApproval", "LogThirdPartyDollars", "TermInMonths", "LogGDP", "LogSP500", "LogFedFunds", "LogCPI", "URinProjectState", "URinBorrState", "BusinessType", "NAICS_Sector", "DeliveryMethod", "BinaryIntergerTerm", "BinaryRepeatBorrower", "BinaryBankStEqualBorrowerSt", "BinaryProjectStEqualBorrowerSt", "ApprovalFiscalYear", "BorrowerRegion", "ProjectRegion")]
+modified_data = raw_data[c("LogGrossApproval", "ThirdPartyDollars", "TermInMonths", "LogGDP", "LogSP500", "LogFedFunds", "LogCPI", "URinProjectState", "URinBorrState", "BusinessType", "NAICS_Sector", "DeliveryMethod", "BinaryIntergerTerm", "BinaryRepeatBorrower", "BinaryBankStEqualBorrowerSt", "BinaryProjectStEqualBorrowerSt", "BorrowerRegion", "ProjectRegion")]
 
 modified_data$Default[raw_data$LoanStatus == "CHGOFF"] = 1
 modified_data$Default[raw_data$LoanStatus != "CHGOFF"] = 0
 
-##############
-#Normalization
-c = 0.1
-modified_data$LogGrossApproval = (modified_data$LogGrossApproval - mean(modified_data$LogGrossApproval))/(c + sd(modified_data$LogGrossApproval))
-modified_data$LogThirdPartyDollars = (modified_data$LogThirdPartyDollars - mean(modified_data$LogThirdPartyDollars))/(c + sd(modified_data$LogThirdPartyDollars))
-modified_data$TermInMonths = (modified_data$TermInMonths - mean(modified_data$TermInMonths))/(c + sd(modified_data$TermInMonths))
-modified_data$LogGDP = (modified_data$LogGDP - mean(modified_data$LogGDP))/(c + sd(modified_data$LogGDP))
-modified_data$LogSP500 = (modified_data$LogSP500 - mean(modified_data$LogSP500))/(c + sd(modified_data$LogSP500))
-modified_data$LogFedFunds = (modified_data$LogFedFunds - mean(modified_data$LogFedFunds))/(c + sd(modified_data$LogFedFunds))
-modified_data$LogCPI = (modified_data$LogCPI - mean(modified_data$LogCPI))/(c + sd(modified_data$LogCPI))
-modified_data$URinProjectState = (modified_data$URinProjectState - mean(modified_data$URinProjectState))/(c + sd(modified_data$URinProjectState))
-modified_data$URinBorrState = (modified_data$URinBorrState - mean(modified_data$URinBorrState))/(c + sd(modified_data$URinBorrState))
 
 ###############
 #Missing Values
-#Continous
-temp = modified_data[c("LogGrossApproval", "LogThirdPartyDollars", "TermInMonths", "LogGDP", "LogSP500", "LogFedFunds", "LogCPI", "URinProjectState", "URinBorrState")]
+#Continuous
+continuous_cols = c("LogGrossApproval", "TermInMonths", "LogGDP", "LogSP500", "LogFedFunds", "LogCPI", "URinProjectState", "URinBorrState")
+temp = modified_data[continuous_cols]
 temp[is.na(temp)] = 0
-modified_data[c("LogGrossApproval", "LogThirdPartyDollars", "TermInMonths", "LogGDP", "LogSP500", "LogFedFunds", "LogCPI", "URinProjectState", "URinBorrState")] = temp
+modified_data[continuous_cols] = temp
 
-#Discrete
-temp = modified_data[c("BusinessType", "NAICS_Sector", "DeliveryMethod", "BinaryIntergerTerm", "BinaryRepeatBorrower", "BinaryBankStEqualBorrowerSt", "BinaryProjectStEqualBorrowerSt", "ApprovalFiscalYear", "BorrowerRegion", "ProjectRegion")]
+#SPECIAL EDGE CASE for ThirdPartyDollars (go from [NA,1] -> [0,1])
+temp = modified_data$ThirdPartyDollars
+temp[is.na(temp)] = 0
+modified_data$ThirdPartyDollars = temp
+
+#All Discrete
+disc_cols = c("BinaryIntergerTerm","ThirdPartyDollars", "BinaryRepeatBorrower", "BinaryBankStEqualBorrowerSt", "BinaryProjectStEqualBorrowerSt", "BusinessType", "NAICS_Sector", "DeliveryMethod", "BorrowerRegion", "ProjectRegion")
+temp = modified_data[disc_cols]
 temp[is.na(temp)] = "Blank"
-modified_data[c("BusinessType", "NAICS_Sector", "DeliveryMethod", "BinaryIntergerTerm", "BinaryRepeatBorrower", "BinaryBankStEqualBorrowerSt", "BinaryProjectStEqualBorrowerSt", "ApprovalFiscalYear", "BorrowerRegion", "ProjectRegion")] = temp
+categorical_cols = disc_cols[apply(temp,2,function(x) { !all(x %in% 0:1) })]
+
+#Categorical (to add dummy variables but excludes binary)
+modified_data[disc_cols] = temp
+modified_data = dummy_cols(modified_data, select_columns = categorical_cols, remove_selected_columns = TRUE)
+names(modified_data) = make.names(names(modified_data), unique=TRUE)
+modified_data[continuous_cols] = as.data.frame(scale(modified_data[continuous_cols]))
+#modified_data = subset(modified_data, select = -c(BusinessType_))
+write_csv(modified_data, "modified_data.csv")
+
 
 #################
 #Data Paritioning
@@ -288,3 +292,203 @@ test_size = nrow(modified_data) - train_size - validation_size
 train_data = modified_data[0:train_size,]
 validation_data = modified_data[(train_size+1):(train_size+validation_size),]
 test_data = modified_data[(train_size+validation_size+1):nrow(modified_data),]
+
+################
+#Logisitic Model
+################
+library(leaps)
+library(tidyverse)
+library(ROCR)
+library(glmnet)
+
+######################
+#Basic Logistic Model
+
+#Training
+log_model = glm(data=train_data, Default ~., family= binomial)
+summary(log_model) 
+
+#Training ROC AUC
+log_model_train_prediction = predict(log_model, train_data, type="response")
+log_model_train_prediction = prediction(log_model_train_prediction, train_data$Default)
+auc = unlist(slot(performance(log_model_train_prediction, 'auc'), 'y.values'))
+auc
+#0.7546051
+
+#Test ROC AUC
+log_model_test_prediction = predict(log_model, newdata = test_data, type="response")
+temp = test_data$Default[!is.na(log_model_test_prediction)]
+log_model_test_prediction = log_model_test_prediction[!is.na(log_model_test_prediction)]
+log_model_test_prediction = prediction(log_model_test_prediction, temp)
+auc = unlist(slot(performance(log_model_test_prediction, 'auc'), 'y.values'))
+auc
+#0.5929299
+
+#Plotting ROCs
+roc_train = performance(log_model_train_prediction,"tpr","fpr")
+roc_test = performance(log_model_test_prediction,"tpr","fpr")
+plot(roc_train, col = 'red', main = 'Basic Logistic Model Training ROC (red) vs. Testing ROC (blue)')
+plot(roc_test, add = TRUE, col = 'blue')
+abline(a = 0, b = 1) 
+
+################################
+#Ridge and Lasso Logisitic Model
+
+#Training
+x_train = model.matrix(Default ~., train_data)[, -1]
+x_train = x_train[,order(colnames(x_train))]
+y_train = train_data$Default
+
+model_L1 = glmnet(x_train, y_train, alpha = 1, nlambda = 10, family="binomial")
+model_L2 = glmnet(x_train, y_train, alpha = 0, nlambda = 10, family="binomial")
+
+x_validation = model.matrix(Default ~., validation_data)[, -1]
+x_validation = x_validation[,order(colnames(x_validation))]
+
+prediction_L1_train = predict(model_L1, newx = x_train, type = "response")
+prediction_L2_train = predict(model_L2, newx = x_train, type = "response")
+prediction_L1_validation = predict(model_L1, newx = x_validation, type = "response")
+prediction_L2_validation = predict(model_L2, newx = x_validation, type = "response")
+
+#Validation: Tuning Lambda Hyperparameter
+AUC_L1_train = vector()
+AUC_L2_train = vector()
+AUC_L1_validation = vector()
+AUC_L2_validation = vector()
+for(i in 1:10){
+  AUC_L1_train = append(AUC_L1_train, unlist(slot(performance(prediction(prediction_L1_train[,i], train_data$Default), 'auc'), 'y.values')))
+  AUC_L2_train = append(AUC_L2_train, unlist(slot(performance(prediction(prediction_L2_train[,i], train_data$Default), 'auc'), 'y.values')))
+  AUC_L1_validation = append(AUC_L1_validation, unlist(slot(performance(prediction(prediction_L1_validation[,i], validation_data$Default), 'auc'), 'y.values')))
+  AUC_L2_validation = append(AUC_L2_validation,  unlist(slot(performance(prediction(prediction_L2_validation[,i], validation_data$Default), 'auc'), 'y.values')))
+}
+
+#Best L1 Hyperparameter
+best_L1_lambda_index = which.max(AUC_L1_validation)
+best_L1_lambda = model_L1$lambda[best_L1_lambda_index]
+best_L1_AUC = max(AUC_L1_validation)
+best_L1_AUC
+#0.6699623
+best_model_L1_coef = as.matrix(coef(model_L1, s= model_L1$lambda[best_L1_lambda_index]))
+
+#Best L2 Hyperparameter
+best_L2_lambda_index = which.max(AUC_L2_validation)
+best_L2_lambda = model_L2$lambda[best_L2_lambda_index]
+best_L2_AUC = max(AUC_L2_validation)
+best_L2_AUC
+#0.6719302
+best_model_L2_coef = as.matrix(coef(model_L2, s= model_L2$lambda[best_L2_lambda_index]))
+
+#Plotting best L1 & l2 coefficients
+best_L1_model_coeff_plot = qplot(y= best_model_L1_coef[,1])
+best_L1_model_coeff_plot + labs(title = "L1 Logistic Model Coeffcients", x= "Covariates", y= "Coeffcient Value")
+best_L2_model_coeff_plot = qplot(y= best_model_L2_coef[,1])
+best_L2_model_coeff_plot + labs(title = "L2 Logistic Model Coeffcients", x= "Covariates", y= "Coeffcient Value")
+
+#Testing: best L2 model
+x_test = model.matrix(Default ~., test_data)[, -1]
+x_test = x_test[,order(colnames(x_test))]
+
+prediction_L2_test = predict(model_L2, newx = x_test, s = best_L2_lambda,  type = "response")
+prediction_L2_test = prediction(prediction_L2_test, test_data$Default)
+auc = unlist(slot(performance(prediction_L2_test, 'auc'), 'y.values'))
+auc
+#0.5648184
+
+#Plotting ROCs
+roc_train = performance(prediction(prediction_L2_train[,best_L2_lambda_index], train_data$Default),"tpr","fpr")
+roc_validation = performance(prediction(prediction_L2_validation[,best_L2_lambda_index], validation_data$Default),"tpr","fpr")
+roc_test = performance(prediction_L2_test,"tpr","fpr")
+plot(roc_train, col = 'red', main = 'L2 Logistic Model Training ROC (red) vs. Validation ROC (green) vs. Testing ROC (blue)')
+plot(roc_validation, add = TRUE, col = 'green')
+plot(roc_test, add = TRUE, col = 'blue')
+abline(a = 0, b = 1) 
+
+#################
+#Neural Net
+#install.packages("neuralnet")
+library(neuralnet)
+library(ROCR)
+
+modified_data = read.csv("modified_data.csv", header = TRUE)
+
+#################
+#Data Paritioning
+train_size = round((nrow(modified_data)/10)*7, 0)
+validation_size = round((nrow(modified_data)/10), 0)
+test_size = nrow(modified_data) - train_size - validation_size
+
+train_data = modified_data[0:train_size,]
+validation_data = modified_data[(train_size+1):(train_size+validation_size),]
+test_data = modified_data[(train_size+validation_size+1):nrow(modified_data),]
+
+#Setup
+set.seed(1)
+softplus = function(x) {log(1 + exp(x))}
+sigmoid = function(x) {1/(1+ exp(-x))}
+swish = function(x) {x*sigmoid(x)}
+################
+#Nueral Net
+#Training: Default hidden layers c(4,2) & sigmoid & rep = 3
+train_data_2 = train_data[sample(nrow(train_data), 5000), ]
+nn = neuralnet(Default ~., data = train_data_2, hidden= c(2), rep = 1, act.fct = softplus, linear.output = FALSE)
+
+plot(nn)
+nn_train_prediction = compute(nn,train_data)
+nn_train_prediction = as.vector(nn_train_prediction$net.result)
+#unstanderdize defafault
+nn_train_prediction = prediction(nn_train_prediction, train_data$Default)
+unique(train_data$Default)
+auc = unlist(slot(performance(nn_train_prediction, 'auc'), 'y.values'))
+auc
+#0.6615994
+
+#Validation: Tuning architecture (Hidden Layer Count, Hidden Variables, act. fun)
+act_functions = c('logistic', 'tanh', softplus, sigmoid, swish)
+hidden_variables = c(2, 4, 8, 16, 32)
+hidden_layers = c(1, 2, 3, 4, 5)
+
+#Validation: Act. Function with Default c(4,2) for hidden layer
+AUC_Act_Fn = vector()
+for(i in 1:5){
+  nn = neuralnet(Default ~., data = train_data_2, hidden= c(4,2), act.fct = act_functions[i], linear.output = FALSE)
+  nn_validation_prediction = compute(nn,validation_data)
+  nn_validation_prediction = as.vector(nn_validation_prediction$net.result)
+  nn_validation_prediction = prediction(nn_validation_prediction, validation_data$Default)
+  AUC_Act_Fn = append(AUC_Act_Fn, unlist(slot(performance(nn_validation_prediction, 'auc'), 'y.values')))
+}
+
+best_Act_Fn_index = which.max(AUC_Act_Fn)
+best_Act_Fn_AUC = max(AUC_Act_Fn)
+best_Act_Fn_AUC
+#...
+
+#Validation: Hidden Variables  with Default 2 hidden layers & best Act Fn
+AUC_Hidden_Variables = vector()
+for(i in 1:5){
+  nn = neuralnet(Default ~., data = train_data_2, hidden= c(AUC_Hidden_Variables[i],AUC_Hidden_Variables[i]/2), act.fct = act_functions[best_Act_Fn_index], linear.output = FALSE)
+  nn_validation_prediction = compute(nn,validation_data)
+  nn_validation_prediction = as.vector(nn_validation_prediction$net.result)
+  nn_validation_prediction = prediction(nn_validation_prediction, validation_data$Default)
+  AUC_Hidden_Variables = append(AUC_Hidden_Variables, unlist(slot(performance(nn_validation_prediction, 'auc'), 'y.values')))
+}
+
+best_Hidden_Variables_index = which.max(AUC_Hidden_Variables)
+best_Hidden_Variables_AUC = max(AUC_Hidden_Variables)
+best_Hidden_Variables_AUC
+#...
+
+#Validation: Hidden Layers with best hidden variables & best Act Fn
+#Need to manually build hidden layer structure given hidden variable output
+AUC_Hidden_Layers = vector()
+for(i in 1:5){
+  nn = neuralnet(Default ~., data = train_data_2, hidden= c(AUC_Hidden_Variables[best_Hidden_Variables_index],AUC_Hidden_Variables[i]/2), act.fct = act_functions[best_Act_Fn_index], linear.output = FALSE)
+  nn_validation_prediction = compute(nn,validation_data)
+  nn_validation_prediction = as.vector(nn_validation_prediction$net.result)
+  nn_validation_prediction = prediction(nn_validation_prediction, validation_data$Default)
+  AUC_Hidden_Layers = append(AUC_Hidden_Layers, unlist(slot(performance(nn_validation_prediction, 'auc'), 'y.values')))
+}
+
+best_Hidden_Layers_index = which.max(AUC_Hidden_Layers)
+best_Hidden_Layers_AUC = max(AUC_Hidden_Layers)
+best_Hidden_Layers_AUC
+#...
