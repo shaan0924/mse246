@@ -280,7 +280,7 @@ modified_data = dummy_cols(modified_data, select_columns = categorical_cols, rem
 names(modified_data) = make.names(names(modified_data), unique=TRUE)
 modified_data[continuous_cols] = as.data.frame(scale(modified_data[continuous_cols]))
 #modified_data = subset(modified_data, select = -c(BusinessType_))
-write_csv(modified_data, "modified_data.csv")
+#write_csv(modified_data, "modified_data.csv")
 
 
 #################
@@ -314,6 +314,7 @@ log_model_train_prediction = prediction(log_model_train_prediction, train_data$D
 auc = unlist(slot(performance(log_model_train_prediction, 'auc'), 'y.values'))
 auc
 #0.7546051
+#0.6777913
 
 #Test ROC AUC
 log_model_test_prediction = predict(log_model, newdata = test_data, type="response")
@@ -323,6 +324,7 @@ log_model_test_prediction = prediction(log_model_test_prediction, temp)
 auc = unlist(slot(performance(log_model_test_prediction, 'auc'), 'y.values'))
 auc
 #0.5929299
+#0.5868853
 
 #Plotting ROCs
 roc_train = performance(log_model_train_prediction,"tpr","fpr")
@@ -368,6 +370,7 @@ best_L1_lambda = model_L1$lambda[best_L1_lambda_index]
 best_L1_AUC = max(AUC_L1_validation)
 best_L1_AUC
 #0.6699623
+#0.6422076
 best_model_L1_coef = as.matrix(coef(model_L1, s= model_L1$lambda[best_L1_lambda_index]))
 
 #Best L2 Hyperparameter
@@ -376,6 +379,7 @@ best_L2_lambda = model_L2$lambda[best_L2_lambda_index]
 best_L2_AUC = max(AUC_L2_validation)
 best_L2_AUC
 #0.6719302
+#0.6404501
 best_model_L2_coef = as.matrix(coef(model_L2, s= model_L2$lambda[best_L2_lambda_index]))
 
 #Plotting best L1 & l2 coefficients
@@ -393,6 +397,7 @@ prediction_L2_test = prediction(prediction_L2_test, test_data$Default)
 auc = unlist(slot(performance(prediction_L2_test, 'auc'), 'y.values'))
 auc
 #0.5648184
+#0.5859332
 
 #Plotting ROCs
 roc_train = performance(prediction(prediction_L2_train[,best_L2_lambda_index], train_data$Default),"tpr","fpr")
@@ -430,7 +435,7 @@ swish = function(x) {x*sigmoid(x)}
 #Nueral Net
 #Training: Default hidden layers c(4,2) & sigmoid & rep = 3
 train_data_2 = train_data[sample(nrow(train_data), 5000), ]
-nn = neuralnet(Default ~., data = train_data_2, hidden= c(2), rep = 1, act.fct = softplus, linear.output = FALSE)
+nn = neuralnet(Default ~., data = train_data_2, hidden= c(5,2), rep = 1, act.fct = sigmoid, linear.output = FALSE)
 
 plot(nn)
 nn_train_prediction = compute(nn,train_data)
