@@ -428,72 +428,57 @@ test_data = modified_data[(train_size+validation_size+1):nrow(modified_data),]
 
 #Setup
 set.seed(1)
-softplus = function(x) {log(1 + exp(x))}
+softplus <- function(x) log(1 + exp(x))
 sigmoid = function(x) {1/(1+ exp(-x))}
 swish = function(x) {x*sigmoid(x)}
 ################
 #Nueral Net
 #Training: Default hidden layers c(4,2) & sigmoid & rep = 3
 train_data_2 = train_data[sample(nrow(train_data), 5000), ]
-nn = neuralnet(Default ~., data = train_data_2, hidden= c(5,2), rep = 1, act.fct = sigmoid, linear.output = FALSE)
-
-plot(nn)
-nn_train_prediction = compute(nn,train_data)
-nn_train_prediction = as.vector(nn_train_prediction$net.result)
-#unstanderdize defafault
-nn_train_prediction = prediction(nn_train_prediction, train_data$Default)
-unique(train_data$Default)
-auc = unlist(slot(performance(nn_train_prediction, 'auc'), 'y.values'))
-auc
-#0.6615994
-
-#Validation: Tuning architecture (Hidden Layer Count, Hidden Variables, act. fun)
-act_functions = c('logistic', 'tanh', softplus, sigmoid, swish)
 hidden_variables = c(2, 4, 8, 16, 32)
-hidden_layers = c(1, 2, 3, 4, 5)
 
-#Validation: Act. Function with Default c(4,2) for hidden layer
-AUC_Act_Fn = vector()
-for(i in 1:5){
-  nn = neuralnet(Default ~., data = train_data_2, hidden= c(4,2), act.fct = act_functions[i], linear.output = FALSE)
-  nn_validation_prediction = compute(nn,validation_data)
-  nn_validation_prediction = as.vector(nn_validation_prediction$net.result)
-  nn_validation_prediction = prediction(nn_validation_prediction, validation_data$Default)
-  AUC_Act_Fn = append(AUC_Act_Fn, unlist(slot(performance(nn_validation_prediction, 'auc'), 'y.values')))
+nn_log = neuralnet(Default ~., data = train_data_2, hidden= c(4,2), linear.output = FALSE)
+nn_tanh = neuralnet(Default ~., data = train_data_2, hidden= c(4,2), threshold = .05, act.fct = 'tanh', linear.output = FALSE)
+nn_softplus = neuralnet(Default ~., data = train_data_2, hidden= c(4,2), threshold = .1, act.fct = softplus, linear.output = FALSE)
+nn_swish = neuralnet(Default ~., data = train_data_2, hidden= c(4,2), threshold = .5, act.fct = swish, linear.output = FALSE)
+
+#AUC
+auc_compute = function(nn,data){
+  nn_prediction = compute(nn,data)
+  nn_prediction = as.vector(nn_prediction$net.result)
+  nn_prediction = prediction(nn_prediction, data$Default)
+  auc = unlist(slot(performance(nn_prediction, 'auc'), 'y.values'))
+  return(auc)
 }
+#Training AUC
+auc_compute(nn_log,train_data)
+#Validation AUC
+auc_train =c(auc_compute(nn_log,train_data),
+             auc_compute(nn_tanh,train_data),
+             auc_compute(nn_softplus,train_data),
+             auc_compute(nn_swish,train_data))
+auc_val =c(auc_compute(nn_log,validation_data),
+             auc_compute(nn_tanh,validation_data),
+             auc_compute(nn_softplus,validation_data),
+             auc_compute(nn_swish,validation_data))
+best_auc = which.max(auc_val)
+#2 tanh
 
-best_Act_Fn_index = which.max(AUC_Act_Fn)
-best_Act_Fn_AUC = max(AUC_Act_Fn)
-best_Act_Fn_AUC
 #...
 
 #Validation: Hidden Variables  with Default 2 hidden layers & best Act Fn
-AUC_Hidden_Variables = vector()
-for(i in 1:5){
-  nn = neuralnet(Default ~., data = train_data_2, hidden= c(AUC_Hidden_Variables[i],AUC_Hidden_Variables[i]/2), act.fct = act_functions[best_Act_Fn_index], linear.output = FALSE)
-  nn_validation_prediction = compute(nn,validation_data)
-  nn_validation_prediction = as.vector(nn_validation_prediction$net.result)
-  nn_validation_prediction = prediction(nn_validation_prediction, validation_data$Default)
-  AUC_Hidden_Variables = append(AUC_Hidden_Variables, unlist(slot(performance(nn_validation_prediction, 'auc'), 'y.values')))
+AUC_arch = vector()
+architectures = c(c(3), c(5), c(2,1), c(2,2),c(4,2), c(8,4), c(16,8))
+for(i in architectures){
+  nn = neuralnet(Default ~., data = train_data_2, hidden= i, threshold = .05, act.fct = 'tanh', linear.output = FALSE)
+  AUC_arch = append(AUC_arch, auc_compute(nn,validation_data))
 }
+AUC_arch
+best_arch_index = which.max(AUC_arch)
+best_arch_AUC = max(AUC_arch)
+best_arch = architectures[best_arch_index]
 
-best_Hidden_Variables_index = which.max(AUC_Hidden_Variables)
-best_Hidden_Variables_AUC = max(AUC_Hidden_Variables)
-best_Hidden_Variables_AUC
+best_nn = neuralnet(Default ~., data = train_data_2, hidden= best_arch, rep = 3, threshold = .05, act.fct = 'tanh', linear.output = FALSE)
 #...
 
-#Validation: Hidden Layers with best hidden variables & best Act Fn
-#Need to manually build hidden layer structure given hidden variable output
-AUC_Hidden_Layers = vector()
-for(i in 1:5){
-  nn = neuralnet(Default ~., data = train_data_2, hidden= c(AUC_Hidden_Variables[best_Hidden_Variables_index],AUC_Hidden_Variables[i]/2), act.fct = act_functions[best_Act_Fn_index], linear.output = FALSE)
-  nn_validation_prediction = compute(nn,validation_data)
-  nn_validation_prediction = as.vector(nn_validation_prediction$net.result)
-  nn_validation_prediction = prediction(nn_validation_prediction, validation_data$Default)
-  AUC_Hidden_Layers = append(AUC_Hidden_Layers, unlist(slot(performance(nn_validation_prediction, 'auc'), 'y.values')))
-}
-
-best_Hidden_Layers_index = which.max(AUC_Hidden_Layers)
-best_Hidden_Layers_AUC = max(AUC_Hidden_Layers)
-best_Hidden_Layers_AUC
-#...
+#Explain fitting results via LOO tests
