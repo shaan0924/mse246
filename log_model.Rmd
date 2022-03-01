@@ -1,6 +1,11 @@
 ---
 title: "Project Code"
 output: github_document
+authors: "Jack Parkin, Sihguat Torres, Shaan Patel, Isaac Arocha"
+date: "`r Sys.Date()`"
+output: 
+  github_document:
+    toc: true
 ---
 
 ```{r setup, include=FALSE}
@@ -20,6 +25,9 @@ library(here) # Instead of setting WD with setwd, use the here() function for co
 library(leaps)
 library(ROCR)
 library(glmnet)
+
+# For Neural Net Model
+library(neuralnet)
 
 #Extra
 library(devtools)
@@ -65,7 +73,6 @@ UnemploymentUSbyState = read.csv('StateUR.csv', header = TRUE)
 
 ## Gross Approval Frequencies and Annual Default Rate over time by Gross Approval Size
 
-Slicing the Data into gross approval ranges
 ```{r}
 temp = raw_data
 temp = 
@@ -85,23 +92,41 @@ raw_data$Size[temp$bin == "(7.5e+05,1e+07]"] = "$750k+"
 raw_data$Size[temp$bin == "(7.5e+05,1e+06]"] = "$750k-$1M"
 raw_data$Size[temp$bin == "(1e+06,2e+0+6]"] = "$1M-$2M"
 raw_data$Size[temp$bin == "(2e+06,1e+07]"] = "$2M+"
-```
 
-Visualizing the frequencies of loan volumes
-```{r}
 raw_data %>% 
   drop_na(Size) %>% 
   group_by(Size) %>% 
   summarise("Volume" = sum(GrossApproval)) %>% 
-  ggplot(aes(x = Size, y = Volume, color = Size)) + 
+  mutate(Size = factor(Size, c("<$100k", "$100k-250K", "$250k-500k", "$500k-750k", "$750k-$1M", "$2M+"))) %>% 
+  ggplot(aes(x = Size, y = Volume, fill = Size)) + 
   geom_bar(stat = "identity") + 
-  ggtitle("Total Loan Volume by Loan Size") + 
-  xlab("Size") + 
+  ggtitle("Figure 1: Total Loan Volume by Loan Size") + 
+  xlab("Loan Size") + 
   ylab("Total Loan Volume")
 ```
 
-Visualizing the Annual Default Rate over time by Gross Approval Size
+Figure 1 shows the frequency distribution over loan size in the SBA Loan Data. The vast majority of loan volume here came from loans between \$100k and \$1M, with loan volumes from loans over \$2m and under \$100k staying relatively small. Loans under \$100k, likely personal loans, makesup an especially small amount of the overall loan volume.
+
 ```{r}
+raw_data %>% 
+  group_by(ApprovalFiscalYear, Size) %>% 
+  summarise(n = sum(n())) %>% 
+  mutate(Size = factor(Size, levels = c("<$100K", "$100k-250K", "$250k-500k", "$500k-750k", "$750k+", "$750k-$1M", "$1M-$2M", "$2M+"))) %>% 
+  drop_na() %>% 
+  ggplot(
+    aes(
+      x = ApprovalFiscalYear,
+      y = n,
+      group = Size,
+      color = Size
+    )
+  ) +
+  geom_point() +
+  geom_line() +
+  scale_y_continuous(name = "Number of Loans Approved", breaks = seq(0, 3500, 500)) +
+  ggtitle("Figure 2: Loans Approved by Approval Year") +
+  xlab("Approval Year")
+
 raw_data %>% 
   group_by(ApprovalFiscalYear, Size) %>% 
   summarise("Annual Default Rate" = sum(LoanStatus == "CHGOFF")/sum(LoanStatus == "CHGOFF" | LoanStatus == "PIF")) %>% 
@@ -115,14 +140,16 @@ raw_data %>%
     ) + 
   geom_point() + 
   geom_line() + 
-  ggtitle("Approval Year vs. Annual Default Rate by Gross Approval Size") + 
+  ggtitle("Figure 3: Approval Year vs. Annual Default Rate by Gross Approval Size") + 
   xlab("Approval Year") + 
-  ylab("Annual Default Rate") 
+  ylab("Annual Default Rate") +
+  theme_light()
 ```
+
+Not shown in Figure 1 is the timing of these loans. In Figure 2, this dimension is explored, and it's clear that the loan frequencies spiked in the second half of the 1990s, in the prelude to the Great Financial Crisis, and during the recovery post-GFC. Figure 3 shows that the default rates varied tremendously over time, and the GFC stands out for its exceptionally high default rates among all loan sizes in the dataset. 
 
 ## Borrower Region vs. Annual Default Rate
 
-Borrower Region Specification
 ```{r}
 raw_data$BorrowerRegion[raw_data$BorrState == "ME"| raw_data$BorrState == "VT"| raw_data$BorrState == "NH"|raw_data$BorrState == "MA"| raw_data$BorrState == "RI"| raw_data$BorrState == "NY"| raw_data$BorrState == "CT"| raw_data$BorrState == "NJ"|raw_data$BorrState == "PA"] = "Northeast"
 
@@ -131,10 +158,7 @@ raw_data$BorrowerRegion[raw_data$BorrState == "ND"| raw_data$BorrState == "SD"| 
 raw_data$BorrowerRegion[raw_data$BorrState == "TX"| raw_data$BorrState == "OK"| raw_data$BorrState == "AR"|raw_data$BorrState == "LA"| raw_data$BorrState == "MS"| raw_data$BorrState == "AL"| raw_data$BorrState == "TN"| raw_data$BorrState == "KY"| raw_data$BorrState == "WV"| raw_data$BorrState == "VA"|raw_data$BorrState == "MD"| raw_data$BorrState == "DC"| raw_data$BorrState == "DE"| raw_data$BorrState == "NC"| raw_data$BorrState == "SC"| raw_data$BorrState == "GA" | raw_data$BorrState == "FL" | raw_data$BorrState == "PR" | raw_data$BorrState == "VI"] = "South"
 
 raw_data$BorrowerRegion[raw_data$BorrState == "WA"| raw_data$BorrState == "OR"| raw_data$BorrState == "CA"|raw_data$BorrState == "NV"| raw_data$BorrState == "ID"| raw_data$BorrState == "MT"| raw_data$BorrState == "UT"| raw_data$BorrState == "WY"|raw_data$BorrState == "CO"| raw_data$BorrState == "NM"| raw_data$BorrState == "AZ"| raw_data$BorrState == "AK"| raw_data$BorrState == "HI" | raw_data$BorrState == "GU"] = "West"
-```
 
-Visualizing the Annual Default Rate over time by Borrower Region
-```{r}
 raw_data %>% 
   drop_na(BorrowerRegion) %>% 
   group_by(BorrowerRegion) %>% 
@@ -154,14 +178,20 @@ raw_data %>%
       x = ApprovalFiscalYear, 
       y = `Annual Default Rate`, 
       group = BorrowerRegion, 
-      color = BorrowerRegion)
-    ) + 
+      color = BorrowerRegion
+    )
+  ) + 
   geom_point() + 
   geom_line() + 
-  ggtitle("Approval Year vs. Annual Default Rate by Borrower Region") + 
+  scale_y_continuous(breaks = seq(0, .7, .1)) +
+  ggtitle("Figure 4: Approval Year vs. Annual Default Rate by Borrower Region") + 
   xlab("Approval Year") + 
-  ylab("Annual Default Rate")
+  ylab("Annual Default Rate") +
+  theme_light()
 ```
+
+Figure 4 affirms that default rates varied over time, but, interestingly, different Borrower Regions' default rates were slightly different. The Northeast and Midwest appear to have been slighlty insulated from the worst of the GFC relative to the West and South.
+
 
 ## Project Region vs. Annual Default Rate
 
@@ -182,14 +212,15 @@ raw_data %>%
   drop_na(ProjectRegion) %>% 
   group_by(ProjectRegion) %>% 
   summarise("Volume" = sum(GrossApproval)) %>% 
-  ggplot(aes(x=ProjectRegion, y = Volume, color = ProjectRegion)) + 
+  ggplot(aes(x=ProjectRegion, y = Volume, fill = ProjectRegion)) + 
   geom_bar(stat="identity") + 
-  ggtitle("Total Loan Volume by Project Region") + 
+  ggtitle("Figure 5: Total Loan Volume by Project Region") + 
   xlab("Project Region") + 
-  ylab("Total Loan Volume")
+  ylab("Total Loan Volume") 
 ```
 
-Visualizing the Annual Default Rate by Approval Year in each Project Region
+Figure 5 shows that the dataset tilts towards loans from the West, South, and Midwest. 
+
 ```{r}
 raw_data %>% 
   drop_na(ProjectRegion) %>%  
@@ -204,10 +235,12 @@ raw_data %>%
     ) + 
   geom_point() + 
   geom_line() + 
-  ggtitle("Approval Year vs. Annual Default Rate by Project Region") + 
+  ggtitle("Figure 6: Approval Year vs. Annual Default Rate by Project Region") + 
   xlab("Approval Year") + 
   ylab("Annual Default Rate")
 ```
+
+Figure 6 mirrors Figure 4 - while all project regions experienced similar default paths over time, the project regions did have slightly different experiences. As in Figure 4, the Northeast and Midwest appear to have been slighlty insulated from the worst of the GFC relative to the West and South.
 
 ## Business Type vs. Annual Default Rate
 
@@ -217,14 +250,16 @@ raw_data[!(raw_data$BusinessType == ""), ] %>%
   drop_na(BusinessType) %>% 
   group_by(BusinessType) %>% 
   summarise("Volume" = sum(GrossApproval)) %>% 
-  ggplot(aes(x = BusinessType, y = Volume, color = BusinessType)) + 
+  ggplot(aes(x = BusinessType, y = Volume, fill = BusinessType)) + 
   geom_bar(stat = "identity") + 
-  ggtitle("Total Loan Volume by Business Type") + 
+  ggtitle("Figure 7: Total Loan Volume by Business Type") + 
   xlab("Business Type") + 
   ylab("Total Loan Volume")
 ```
 
-Annual Default Rate per Approval Year by Business Type
+Figure 7 shows that Corporations were the primary borrowers in the SBA dataset; individuals and partnerships make up fairly small portions of the dataset's total loan volume.
+
+
 ```{r}
 raw_data[!(raw_data$BusinessType == ""), ] %>% 
   group_by(ApprovalFiscalYear, BusinessType) %>% 
@@ -238,10 +273,12 @@ raw_data[!(raw_data$BusinessType == ""), ] %>%
     ) + 
   geom_point() + 
   geom_line() + 
-  ggtitle("Approval Year vs. Annual Default Rate by Business Type") + 
+  ggtitle("Figure 8: Approval Year vs. Annual Default Rate by Business Type") + 
   xlab("Approval Year") + 
   ylab("Annual Default Rate")
 ```
+Figure 9 demonstrates that the GFC affected all business types. All borrowers - corporations, individuals, and partnerships - suffered greatly during the GFC.
+
 
 ## NAICS vs. Annual Default Rate
 Annual Default Rate per Approval Year by NAICS Code (Subset 1)
@@ -272,12 +309,12 @@ temp %>%
   ) + 
   geom_point() + 
   geom_line() + 
-  ggtitle("Approval Year vs. Annual Default Rate by NAICS Sector (Subset 1)") + 
+  ggtitle("Figure 9: Approval Year vs. Annual Default Rate by NAICS Sector (Subset 1)") + 
   xlab("Approval Year") + 
   ylab("Annual Default Rate")
 ```
 
-Annual Default Rate per Approval Year by NAICS Code (Subset 2)
+
 ```{r}
 raw_data$NAICS_Sector[substring(raw_data$NaicsCode, 1, 2) == "53"] = "Real Estate & Leasing"
 raw_data$NAICS_Sector[substring(raw_data$NaicsCode, 1, 2) == "54"] = "Professional Services"
@@ -305,10 +342,12 @@ raw_data %>%
     ) + 
   geom_point() + 
   geom_line() + 
-  ggtitle("Approval Year vs. Annual Default Rate by NAICS Sector (Subset 2)") + 
+  ggtitle("Figure 10: Approval Year vs. Annual Default Rate by NAICS Sector (Subset 2)") + 
   xlab("Approval Year") + 
   ylab("Annual Default Rate")
 ```
+
+Figures 9 and 10 are striking - the effect of the GFC was not at all equivalent between NAICS Sectors. Real Estate & Leasing, for example, experienced tremendous growth in default rates during the GFC while management services and wholesale trade were much more insulated from the worst of the crisis.
 
 Total Loan Volume by NAICS Code
 ```{r}
@@ -327,14 +366,18 @@ raw_data %>%
   drop_na(NAICS_Sector) %>% 
   group_by(NAICS_Sector) %>% 
   summarise("Volume" = sum(GrossApproval)) %>% 
+  mutate(NAICS_Sector = fct_reorder(NAICS_Sector, Volume)) %>% 
   ggplot(aes(x = NAICS_Sector, y=Volume, color = NAICS_Sector)) + 
   geom_bar(stat = "identity") + 
-  ggtitle("Total Loan Volume by NAICS Sector") + 
+  ggtitle("Figure 11: Total Loan Volume by NAICS Sector") + 
   xlab("NAICS Sector") + 
-  ylab("Total Loan Volume")
+  ylab("Total Loan Volume") +
+  coord_flip() +
+  theme(legend.position = "none")
 ```
 
-Term Length vs. Annual Default Rate
+Figure 11 shows that total loan volume varies greatly with NAICS sector. In the SBA Data, the loan volumes of Retail Trade, Manufacturing, and Accommodation and Food Services dwarf those of Mining & Oil, Utilities, Management Services, and Public Administration.
+
 ```{r}
 temp = raw_data
 temp = transform(raw_data, bin = cut(TermInMonths, breaks= c(0, 119, 180, 240, 500)))
@@ -349,9 +392,13 @@ raw_data %>%
   summarise("Volume" = sum(GrossApproval)) %>% 
   ggplot(aes(x=TermLength, y=Volume, color = TermLength)) + 
   geom_bar(stat="identity") + 
-  ggtitle("Total Loan Volume by Term Length") + 
+  ggtitle("Figure 12: Total Loan Volume by Term Length") + 
   xlab("Term Length") + ylab("Total Loan Volume")
+```
 
+Figure 12 shows the tremendous concentration of loan volume in loans whose term lengths are between 180 and 240 months. Other term lengths are much less represented in the data.
+
+```{r}
 raw_data %>% 
   drop_na(TermLength) %>% 
   group_by(ApprovalFiscalYear, TermLength) %>% 
@@ -689,8 +736,17 @@ plot(roc_test, add = TRUE, col = 'blue')
 abline(a = 0, b = 1) 
 ```
 
-#################
-#Data Paritioning
+# Neural Net
+## Data Partitioning
+
+```{r}
+#TEMPORARY - For now, import the most up-to-date data
+
+modified_data = read.csv("modified_data.csv", header = TRUE)
+```
+
+
+```{r}
 train_size = round((nrow(modified_data)/10)*7, 0)
 validation_size = round((nrow(modified_data)/10), 0)
 test_size = nrow(modified_data) - train_size - validation_size
@@ -698,14 +754,18 @@ test_size = nrow(modified_data) - train_size - validation_size
 train_data = modified_data[0:train_size,]
 validation_data = modified_data[(train_size+1):(train_size+validation_size),]
 test_data = modified_data[(train_size+validation_size+1):nrow(modified_data),]
+```
 
 #Setup
+```{r}
 set.seed(1)
 softplus = function(x) {log(1 + exp(x))}
 sigmoid = function(x) {1/(1+ exp(-x))}
 swish = function(x) {x*sigmoid(x)}
+```
 
 #Training: Default hidden layers c(4,2) & sigmoid & rep = 3
+```{r}
 train_data_2 = train_data[sample(nrow(train_data), 5000), ]
 nn = neuralnet(Default ~., data = train_data_2, hidden= c(4,2), rep = 3, act.fct = sigmoid, linear.output = FALSE)
 
@@ -716,6 +776,8 @@ nn_train_prediction = prediction(nn_train_prediction, train_data$Default)
 auc = unlist(slot(performance(nn_train_prediction, 'auc'), 'y.values'))
 auc
 #0.6615994
+```
+
 
 #Validation: Tuning architecture (Hidden Layer Count, Hidden Variables, act. fun)
 act_functions = c('logistic', 'tanh', softplus, sigmoid, swish)
