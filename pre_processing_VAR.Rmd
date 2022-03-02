@@ -1,0 +1,140 @@
+---
+title: "Pre Processing for VaR"
+output: github_document
+authors: "Jack Parkin, Sihguat Torres, Shaan Patel, Isaac Arocha"
+date: "`r Sys.Date()`"
+output: 
+  github_document:
+    toc: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r warning=FALSE, message=FALSE}
+# Used Throughout
+library(lubridate)
+library(quantmod)
+library(tidyverse)
+library(data.table)
+library(readxl) 
+library(here) # Instead of setting WD with setwd, use the here() function for code transferability between devices
+
+# # For Logistic Model
+# library(leaps)
+# library(ROCR)
+# library(glmnet)
+# 
+# # For Neural Net Model
+# library(neuralnet)
+
+#Extra
+library(devtools)
+```
+
+# Data Import 
+## ONLY RUN ON FIRST PASS
+```{r warning=FALSE, message=FALSE}
+raw_data <- read.csv(here("pre_processing_VAR_data.csv"))
+# write.csv(raw_data_xlxs,here("SBA Loan data .csv"), row.names = FALSE)
+```
+
+
+```{r}
+set.seed(15)
+
+raw_data_small_rows <-  
+  c(sample(1000:3000, 1), sample(3000:8000, 1))
+
+raw_data_small <- 
+  raw_data[raw_data_small_rows[1]:raw_data_small_rows[2],]
+```
+
+
+```{r}
+raw_data %>% 
+  select(LoanStatus) %>% 
+  group_by(LoanStatus) %>% 
+  summarise(n = sum(n()))
+
+raw_data %>% 
+  select(ApprovalFiscalYear, TermInMonths) %>% 
+  mutate(term_years = TermInMonths %/% 12)
+```
+
+First, I find the terminus of each loan. 
+
+```{r}
+raw_data <- 
+  raw_data %>% 
+  rename(approval_year = ApprovalFiscalYear) %>% 
+  mutate(
+    term_years = TermInMonths %/% 12,
+    terminus = 
+      case_when(
+        !is.na(ChargeOffDate) ~ as.integer(substring(ChargeOffDate, 0, 4)), # Loan is charged off
+        approval_year + term_years <= 2013 ~ as.integer(approval_year + term_years),  # Loan is paid in full prior to end of dataset
+        approval_year + term_years > 2013 ~ as.integer(2013),
+        TRUE ~ NA_integer_
+      )
+  ) %>% 
+  select(GrossApproval, approval_year, terminus, term_years, GrossChargeOffAmount)
+
+# raw_data_tiny <- 
+#   raw_data_small[1:10,]
+# 
+# raw_data %>%
+#   arrange(approval_year) %>%
+#   pull(approval_year) %>%
+#   unique() %>% 
+#   length()
+# 
+# raw_data %>%
+#   arrange(terminus) %>%
+#   pull(terminus) %>%
+#   unique()
+```
+
+Now, I copy the raw_data set as many times as there are years in our data set. For illustrative purposes, I'm only doing 2 here.
+```{r}
+raw_data_list <- list()
+
+for (i in 1:25) { #needs to run from 1990 to 2014, total of 25 years including 1990
+  raw_data_list[[i]] = raw_data
+}
+```
+
+Now that I've got my list of data sets, I'm going to walk through that list and eliminate the inactive loans within each of the list's elements.
+```{r}
+for (i in 1:25) {
+  year = 1990 + i - 1 # i = 1 means we're in 1991, i = 2 means we're in 1992, etc. 11 -> 2001, 12 -> 2002
+  raw_data_list[[i]] <- 
+    raw_data_list[[i]] %>%
+    filter(
+      approval_year <= year,
+      year <= terminus
+    )
+}
+```
+
+
+## All Other Data
+```{r warning=FALSE, message=FALSE}
+raw_data <- read.csv("SBA Loan data .csv", header = TRUE)
+
+#GDP Import
+GDP = read.csv("GDP.csv")
+
+#SP500 Import
+SP500 = getSymbols("^GSPC",from = "1990-01-31",to = "2014-12-31", periodicity = 'monthly', auto.assign = FALSE)
+
+#FedFunds Import
+FEDFUNDS = read.csv("FEDFUNDS.csv")
+
+#CPI Import (Consumer Price Index for All Urban Consumers: All Items in U.S. City Average)
+CPI = read.csv("CPIAUCSL.csv")
+
+#Unemployment
+UnemploymentUSbyState = read.csv('StateUR.csv', header = TRUE)
+```

@@ -440,6 +440,9 @@ temp.data <-
     ApprovalDate = as.Date(ApprovalDate),
     month.bin = cut(ApprovalDate, breaks = "month")
   )
+
+# THIS IS WHERE THE pre_processing_VAR data comes from
+# write.csv(temp.data, file = "pre_processing_VAR_data.csv")
 ```
 
 ## Addition of Unemployment Statistics at the State Level by Month 
