@@ -241,19 +241,20 @@ raw_data$BinaryProjectStEqualBorrowerSt[as.character(raw_data$BorrState) == as.c
 raw_data$BinaryProjectStEqualBorrowerSt[as.character(raw_data$BorrState) != as.character(raw_data$ProjectState)] = 0
 
 ###############################
-#Modification
+#Cleaning/Splitting Data
+###############################
+
+###############################
+#Transforms
 raw_data$LogGrossApproval = log(raw_data$GrossApproval)
-# NOT CONTINOUS -> raw_data$LogThirdPartyDollars = log(raw_data$ThirdPartyDollars)
 raw_data$LogGDP = log(raw_data$GDP)
 raw_data$LogSP500 = log(raw_data$GSPC.price)
 raw_data$LogFedFunds = log(raw_data$FedFunds)
 raw_data$LogCPI = log(raw_data$CPI)
 
 modified_data = raw_data[c("LogGrossApproval", "ThirdPartyDollars", "TermInMonths", "LogGDP", "LogSP500", "LogFedFunds", "LogCPI", "URinProjectState", "URinBorrState", "BusinessType", "NAICS_Sector", "DeliveryMethod", "BinaryIntergerTerm", "BinaryRepeatBorrower", "BinaryBankStEqualBorrowerSt", "BinaryProjectStEqualBorrowerSt", "BorrowerRegion", "ProjectRegion")]
-
 modified_data$Default[raw_data$LoanStatus == "CHGOFF"] = 1
 modified_data$Default[raw_data$LoanStatus != "CHGOFF"] = 0
-
 
 ###############
 #Missing Values
@@ -262,26 +263,22 @@ continuous_cols = c("LogGrossApproval", "TermInMonths", "LogGDP", "LogSP500", "L
 temp = modified_data[continuous_cols]
 temp[is.na(temp)] = 0
 modified_data[continuous_cols] = temp
-
 #SPECIAL EDGE CASE for ThirdPartyDollars (go from [NA,1] -> [0,1])
 temp = modified_data$ThirdPartyDollars
 temp[is.na(temp)] = 0
 modified_data$ThirdPartyDollars = temp
-
 #All Discrete
 disc_cols = c("BinaryIntergerTerm","ThirdPartyDollars", "BinaryRepeatBorrower", "BinaryBankStEqualBorrowerSt", "BinaryProjectStEqualBorrowerSt", "BusinessType", "NAICS_Sector", "DeliveryMethod", "BorrowerRegion", "ProjectRegion")
 temp = modified_data[disc_cols]
 temp[is.na(temp)] = "Blank"
 categorical_cols = disc_cols[apply(temp,2,function(x) { !all(x %in% 0:1) })]
-
 #Categorical (to add dummy variables but excludes binary)
 modified_data[disc_cols] = temp
 modified_data = dummy_cols(modified_data, select_columns = categorical_cols, remove_selected_columns = TRUE)
 names(modified_data) = make.names(names(modified_data), unique=TRUE)
 modified_data[continuous_cols] = as.data.frame(scale(modified_data[continuous_cols]))
-#modified_data = subset(modified_data, select = -c(BusinessType_))
-#write_csv(modified_data, "modified_data.csv")
 
+#write_csv(modified_data, "modified_data.csv")
 
 #################
 #Data Paritioning
@@ -407,78 +404,3 @@ plot(roc_train, col = 'red', main = 'L2 Logistic Model Training ROC (red) vs. Va
 plot(roc_validation, add = TRUE, col = 'green')
 plot(roc_test, add = TRUE, col = 'blue')
 abline(a = 0, b = 1) 
-
-#################
-#Neural Net
-#install.packages("neuralnet")
-library(neuralnet)
-library(ROCR)
-
-modified_data = read.csv("modified_data.csv", header = TRUE)
-
-#################
-#Data Paritioning
-train_size = round((nrow(modified_data)/10)*7, 0)
-validation_size = round((nrow(modified_data)/10), 0)
-test_size = nrow(modified_data) - train_size - validation_size
-
-train_data = modified_data[0:train_size,]
-validation_data = modified_data[(train_size+1):(train_size+validation_size),]
-test_data = modified_data[(train_size+validation_size+1):nrow(modified_data),]
-
-#Setup
-set.seed(1)
-softplus <- function(x) log(1 + exp(x))
-sigmoid = function(x) {1/(1+ exp(-x))}
-swish = function(x) {x*sigmoid(x)}
-################
-#Nueral Net
-#Training: Default hidden layers c(4,2) & sigmoid & rep = 3
-train_data_2 = train_data[sample(nrow(train_data), 5000), ]
-hidden_variables = c(2, 4, 8, 16, 32)
-
-nn_log = neuralnet(Default ~., data = train_data_2, hidden= c(4,2), linear.output = FALSE)
-nn_tanh = neuralnet(Default ~., data = train_data_2, hidden= c(4,2), threshold = .05, act.fct = 'tanh', linear.output = FALSE)
-nn_softplus = neuralnet(Default ~., data = train_data_2, hidden= c(4,2), threshold = .1, act.fct = softplus, linear.output = FALSE)
-nn_swish = neuralnet(Default ~., data = train_data_2, hidden= c(4,2), threshold = .5, act.fct = swish, linear.output = FALSE)
-
-#AUC
-auc_compute = function(nn,data){
-  nn_prediction = compute(nn,data)
-  nn_prediction = as.vector(nn_prediction$net.result)
-  nn_prediction = prediction(nn_prediction, data$Default)
-  auc = unlist(slot(performance(nn_prediction, 'auc'), 'y.values'))
-  return(auc)
-}
-#Training AUC
-auc_compute(nn_log,train_data)
-#Validation AUC
-auc_train =c(auc_compute(nn_log,train_data),
-             auc_compute(nn_tanh,train_data),
-             auc_compute(nn_softplus,train_data),
-             auc_compute(nn_swish,train_data))
-auc_val =c(auc_compute(nn_log,validation_data),
-             auc_compute(nn_tanh,validation_data),
-             auc_compute(nn_softplus,validation_data),
-             auc_compute(nn_swish,validation_data))
-best_auc = which.max(auc_val)
-#2 tanh
-
-#...
-
-#Validation: Hidden Variables  with Default 2 hidden layers & best Act Fn
-AUC_arch = vector()
-architectures = c(c(3), c(5), c(2,1), c(2,2),c(4,2), c(8,4), c(16,8))
-for(i in architectures){
-  nn = neuralnet(Default ~., data = train_data_2, hidden= i, threshold = .05, act.fct = 'tanh', linear.output = FALSE)
-  AUC_arch = append(AUC_arch, auc_compute(nn,validation_data))
-}
-AUC_arch
-best_arch_index = which.max(AUC_arch)
-best_arch_AUC = max(AUC_arch)
-best_arch = architectures[best_arch_index]
-
-best_nn = neuralnet(Default ~., data = train_data_2, hidden= best_arch, rep = 3, threshold = .05, act.fct = 'tanh', linear.output = FALSE)
-#...
-
-#Explain fitting results via LOO tests
