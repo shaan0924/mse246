@@ -55,8 +55,8 @@ Active here is defined as the following: the loan was approved in or before that
 First, I find the terminus of each loan. 
 
 ```{r}
-raw_data_small <- 
-  raw_data_small %>% 
+raw_data <- 
+  raw_data %>% 
   mutate(
     term_years = TermInMonths %/% 12,
     terminus = 
@@ -66,8 +66,7 @@ raw_data_small <-
         ApprovalFiscalYear + term_years > 2013 ~ as.integer(2013),
         TRUE ~ NA_integer_
       )
-  ) %>%
-  select(GrossApproval, ApprovalFiscalYear, ApprovalDate, terminus, term_years, GrossChargeOffAmount, ProjectState, BorrState, TermInMonths)
+  ) 
 
 raw_data_tiny <-
   raw_data_small[1:10,]
@@ -83,7 +82,7 @@ raw_data_list <- list()
 periods <- 5 #CAN ONLY TAKE ON THE VALUE OF 5 OR 25
 
 for (i in 1:periods) { 
-  raw_data_list[[i]] = raw_data_small
+  raw_data_list[[i]] = raw_data
 }
 ```
 
@@ -202,12 +201,12 @@ raw_data_tiny %>%
     LogSP500 = log(GSPC.price),
     LogFedFunds = log(FedFunds),
     LogCPI = log(CPI)
-  ) %>% 
+  ) %>%
   mutate(
     across(
-      .cols = 
+      .cols =
         c(
-          LogGrossApproval, 
+          LogGrossApproval,
           TermInMonths,
           LogGDP,
           LogSP500,
