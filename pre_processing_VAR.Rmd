@@ -8,10 +8,23 @@ output:
     toc: true
 ---
 
+
+Run this program with the period specification set at 5 and save raw_data_list as some variable! Then re-run the program with the period specification at 25, and you'll have all of the data in two lists - one for each period specification.
+
+Period Specification
+```{r warning=FALSE, message=FALSE}
+# 1 Year Scenario -> we run from 1990 to 2014, total of 25 years including 1990. i = 1:25
+# 5 year scenario -> we run from 1990 to 2014, total of five 5-year periods. i = 1:5
+
+periods <- 5 #CAN ONLY TAKE ON THE VALUE OF 5 OR 25
+```
+
+
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
+Libraries
 ```{r warning=FALSE, message=FALSE}
 # Used Throughout
 library(lubridate)
@@ -33,20 +46,11 @@ library(here) # Instead of setting WD with setwd, use the here() function for co
 library(devtools)
 ```
 
+
+
 # Data Import 
 ```{r warning=FALSE, message=FALSE}
-raw_data <- read.csv(here("pre_processing_VAR_data.csv"))
-```
-
-# This is just to make things nice and small - easier for testing
-```{r}
-# set.seed(15)
-# 
-# raw_data_small_rows <-  
-#   c(sample(1000:3000, 1), sample(3000:8000, 1))
-# 
-# raw_data_small <- 
-#   raw_data[raw_data_small_rows[1]:raw_data_small_rows[2],]
+raw_data <- read.csv(here("input_pre_processing_VAR.csv"))
 ```
 
 # Pre-Processing
@@ -74,11 +78,6 @@ raw_data <-
 Now, I copy the raw_data set as many times as there are periods in our data set. 
 ```{r}
 raw_data_list <- list()
-
-# 1 Year Scenario -> we run from 1990 to 2014, total of 25 years including 1990. i = 1:25
-# 5 year scenario -> we run from 1990 to 2014, total of five 5-year periods. i = 1:5
-
-periods <- 25 #CAN ONLY TAKE ON THE VALUE OF 5 OR 25
 
 for (i in 1:periods) { 
   raw_data_list[[i]] = raw_data
@@ -160,7 +159,6 @@ SP500 <-
   transmute(month.bin = rownames(.), GSPC.price = GSPC.Adjusted)
 ```
 
-
 Adding all of the additional, time-varying data to each item in the list of data sets
 
 ```{r}
@@ -212,7 +210,12 @@ for (i in 1:periods) {
           repeat_borr ~ 1L, 
           !repeat_borr ~ 0L, 
           TRUE ~ NA_integer_
-        ),
+      ),
+      Default = 
+        case_when(
+          GrossChargeOffAmount == 0 ~ 0L,
+          TRUE ~ 1L
+      ),
       LogGrossApproval = log(GrossApproval),
       LogGDP = log(GDP),
       LogSP500 = log(GSPC.price),
@@ -246,7 +249,7 @@ for (i in 1:periods) {
     )
   
   raw_data_list[[i]] <- 
-    raw_data_list[[i]][c("LogGrossApproval", "BinaryThirdPartyDollars", "TermInMonths", "LogGDP", "LogSP500", "LogFedFunds", "LogCPI", "URinProjectState", "URinBorrState", "BusinessType", "NAICS_Sector", "DeliveryMethod", "BinaryIntergerTerm", "BinaryRepeatBorrower", "BinaryBankStEqualBorrowerSt", "BinaryProjectStEqualBorrowerSt", "ApprovalFiscalYear", "BorrState", "ProjectState")]
+    raw_data_list[[i]][c("GrossApproval", "GrossChargeOffAmount", "Default", "LogGrossApproval", "BinaryThirdPartyDollars", "TermInMonths", "LogGDP", "LogSP500", "LogFedFunds", "LogCPI", "URinProjectState", "URinBorrState", "BusinessType", "NAICS_Sector", "DeliveryMethod", "BinaryIntergerTerm", "BinaryRepeatBorrower", "BinaryBankStEqualBorrowerSt", "BinaryProjectStEqualBorrowerSt", "ApprovalFiscalYear", "BorrState", "ProjectState")]
   
   #Dealing with missing values!
   raw_data_list[[i]] <- 
@@ -270,6 +273,7 @@ for (i in 1:periods) {
           .cols = 
             c(
               BusinessType, 
+              Default,
               NAICS_Sector, 
               DeliveryMethod, 
               BinaryIntergerTerm, 
