@@ -40,14 +40,16 @@ raw_data <- read.csv(here("pre_processing_VAR_data.csv"))
 
 # This is just to make things nice and small - easier for testing
 ```{r}
-set.seed(15)
-
-raw_data_small_rows <-  
-  c(sample(1000:3000, 1), sample(3000:8000, 1))
-
-raw_data_small <- 
-  raw_data[raw_data_small_rows[1]:raw_data_small_rows[2],]
+# set.seed(15)
+# 
+# raw_data_small_rows <-  
+#   c(sample(1000:3000, 1), sample(3000:8000, 1))
+# 
+# raw_data_small <- 
+#   raw_data[raw_data_small_rows[1]:raw_data_small_rows[2],]
 ```
+
+# Pre-Processing
 
 The goal here is to split our timeline (1990-2014) into periods, get a dataframe for each period, and remove the inactive loans from each period.
 Active here is defined as the following: the loan was approved in or before that period AND the loan was terminated in or after that period.
@@ -55,8 +57,8 @@ Active here is defined as the following: the loan was approved in or before that
 First, I find the terminus of each loan. 
 
 ```{r}
-raw_data_small <- 
-  raw_data_small %<>% 
+raw_data <- 
+  raw_data %>% 
   mutate(
     term_years = TermInMonths %/% 12,
     terminus = 
@@ -67,22 +69,19 @@ raw_data_small <-
         TRUE ~ NA_integer_
       )
   ) 
-
-raw_data_tiny <-
-  raw_data_small[1:10,]
 ```
 
-Now, I copy the raw_data set as many times as there are years in our data set. 
+Now, I copy the raw_data set as many times as there are periods in our data set. 
 ```{r}
 raw_data_list <- list()
 
 # 1 Year Scenario -> we run from 1990 to 2014, total of 25 years including 1990. i = 1:25
 # 5 year scenario -> we run from 1990 to 2014, total of five 5-year periods. i = 1:5
 
-periods <- 5 #CAN ONLY TAKE ON THE VALUE OF 5 OR 25
+periods <- 25 #CAN ONLY TAKE ON THE VALUE OF 5 OR 25
 
 for (i in 1:periods) { 
-  raw_data_list[[i]] = raw_data_small
+  raw_data_list[[i]] = raw_data
 }
 ```
 
@@ -94,7 +93,7 @@ for (i in 1:periods) {
   if (periods == 5) {
     active_years = seq(1990 + 5*(i - 1), 1990 + 5*i, 1)
     raw_data_list[[i]] <- 
-    raw_data_list[[i]] %<>%
+    raw_data_list[[i]] %>% 
     filter(
       ApprovalFiscalYear %in% active_years | ApprovalFiscalYear < active_years[1],
       terminus %in% active_years | terminus > active_years[6]
@@ -102,7 +101,7 @@ for (i in 1:periods) {
   } else {
     curr_year = 1990 + i - 1
     raw_data_list[[i]] <- 
-    raw_data_list[[i]] %<>%
+    raw_data_list[[i]] %>% 
     filter(
       ApprovalFiscalYear <= curr_year,
       curr_year <= terminus
@@ -114,6 +113,7 @@ for (i in 1:periods) {
 
 At this point, I've got a list of data frames, one per period. Each data frame consists only of the active loans during that period. 
 Now, I've got to add in the other additional variables to each data set.
+
 
 # Additional Data
 ```{r warning=FALSE, message=FALSE}
@@ -137,8 +137,8 @@ Prepping the GDP Data
 
 ```{r}
 GDP <- 
-  GDP %<>% 
-  transmute(month.bin = DATE, GDP = GDP) %<>% 
+  GDP %>%  
+  transmute(month.bin = DATE, GDP = GDP) %>%  
   transmute(
     GDP,
     quarter.bin =
@@ -160,96 +160,16 @@ SP500 <-
   transmute(month.bin = rownames(.), GSPC.price = GSPC.Adjusted)
 ```
 
-Testing 
-```{r}
-raw_data_tiny %<>% 
-  mutate(
-    quarter.bin =
-      case_when(
-        as.numeric(substring(ApprovalDate, 6, 7)) < 10 & as.numeric(substring(ApprovalDate, 6, 7)) >= 7  ~ paste("Q3", substring(ApprovalDate, 0, 4)),
-        as.numeric(substring(ApprovalDate, 6, 7)) < 7 & as.numeric(substring(ApprovalDate, 6, 7)) >= 4   ~ paste("Q2", substring(ApprovalDate, 0, 4)),
-        as.numeric(substring(ApprovalDate, 6, 7)) < 4                                                    ~ paste("Q1", substring(ApprovalDate, 0, 4)),
-        TRUE                                                                                             ~ paste("Q4", substring(ApprovalDate, 0, 4)),
-      )
-  ) %<>% 
-  left_join(y = GDP, by = "quarter.bin") %<>% 
-  subset(select = -quarter.bin) %<>% 
-  left_join(y = SP500, by = "month.bin") %<>% 
-  left_join(y = FEDFUNDS, by = c("month.bin" = "DATE")) %<>% 
-  left_join(y = CPI, by = c("month.bin" = "DATE")) %>% 
-  left_join(y = UnemploymentUSbyState, by = c("ProjectState" = "State", "month.bin" = "DATE")) %<>% 
-  rename(URinBorrState = UR) %<>% 
-  left_join(y = UnemploymentUSbyState, by = c("BorrState" = "State", "month.bin" = "DATE")) %<>% 
-  rename(URinProjectState = UR) %>% 
-  mutate(
-    BinaryIntergerTerm = case_when(TermInMonths %% 12 == 0 ~ 1L, TRUE ~ 0L),
-    BinaryThirdPartyDollars = 
-      case_when(ThirdPartyDollars ~ 1L, !ThirdPartyDollars ~ 0L, TRUE ~ NA_integer_),
-    BinaryBankStEqualBorrowerSt = 
-      case_when(
-        as.character(BorrState) == as.character(CDC_State) ~ 1L, 
-        as.character(BorrState) != as.character(CDC_State)~ 0L,
-        TRUE ~ NA_integer_
-    ),
-    BinaryProjectStEqualBorrowerSt =
-      case_when(
-        as.character(BorrState) == as.character(ProjectState) ~ 1L, 
-        as.character(BorrState) != as.character(ProjectState) ~ 0L, 
-        TRUE ~ NA_integer_
-    ),
-    LogGrossApproval = log(GrossApproval),
-    LogGDP = log(GDP),
-    LogSP500 = log(GSPC.price),
-    LogFedFunds = log(FEDFUNDS),
-    LogCPI = log(CPIAUCSL)
-  )
-```
 
-Chopped off this normalization bit! You'll have to re-attach it.
+Adding all of the additional, time-varying data to each item in the list of data sets
 
 ```{r}
-raw_data_tiny %<>%
-  mutate(
-    across(
-      .cols =
-        c(
-          LogGrossApproval,
-          TermInMonths,
-          LogGDP,
-          LogSP500,
-          LogFedFunds,
-          LogCPI,
-          URinProjectState,
-          URinBorrState
-        ),
-      .fns = ~ (. - mean(., na.rm = TRUE)) / (sd(., na.rm = TRUE))
-    )
-  )
+
+for (i in 1:periods) {
+  repeat_borr = duplicated(raw_data_list[[i]]$BorrName)
   
-raw_data_tiny %>% select(month.bin)
-  
-```
-
-Left to do - 
-1. add BINARY REPEAT BORROWERS
-2. Normalize the continuous variables (see code below)
-3. Change the output from a normal dataframe to the kind of dataframe that we'll feed to the model (I think the model.matrix() function will do it)
-4. Encase the code above in a for-loop that will iterate over the data frames in the list
-
-
-
-Normalizing Continuous Variables - sample code
-```{r}
-
-```
-
-
-Adding all of the data
-```{r}
-
-for (i in 1:periods){
   raw_data_list[[i]] <- 
-    raw_data_list[[i]] %<>% 
+    raw_data_list[[i]] %>%  
     mutate(
       quarter.bin =
         case_when(
@@ -258,20 +178,24 @@ for (i in 1:periods){
           as.numeric(substring(ApprovalDate, 6, 7)) < 4                                                    ~ paste("Q1", substring(ApprovalDate, 0, 4)),
           TRUE                                                                                             ~ paste("Q4", substring(ApprovalDate, 0, 4)),
         )
-    ) %<>% 
-    left_join(y = GDP, by = "quarter.bin") %<>% 
-    subset(select = -quarter.bin) %<>%    # Up to here, I've added GDP. Onto S&P 500
-    left_join(y = SP500, by = "month.bin") %<>% 
-    left_join(y = FEDFUNDS, by = c("month.bin" = "DATE")) %<>% 
+    ) %>%  
+    left_join(y = GDP, by = "quarter.bin") %>%  
+    subset(select = -quarter.bin) %>%     # Up to here, I've added GDP. Onto S&P 500
+    left_join(y = SP500, by = "month.bin") %>%  
+    left_join(y = FEDFUNDS, by = c("month.bin" = "DATE")) %>%  
     left_join(y = CPI, by = c("month.bin" = "DATE")) %>% 
-    left_join(y = UnemploymentUSbyState, by = c("ProjectState" = "State", "month.bin" = "DATE")) %<>% 
-    rename(URinBorrState = UR) %<>% 
-    left_join(y = UnemploymentUSbyState, by = c("BorrState" = "State", "month.bin" = "DATE")) %<>% 
+    left_join(y = UnemploymentUSbyState, by = c("ProjectState" = "State", "month.bin" = "DATE")) %>%  
+    rename(URinBorrState = UR) %>%  
+    left_join(y = UnemploymentUSbyState, by = c("BorrState" = "State", "month.bin" = "DATE")) %>%  
     rename(URinProjectState = UR) %>% 
     mutate(
       BinaryIntergerTerm = case_when(TermInMonths %% 12 == 0 ~ 1L, TRUE ~ 0L),
       BinaryThirdPartyDollars = 
-        case_when(ThirdPartyDollars ~ 1L, !ThirdPartyDollars ~ 0L, TRUE ~ NA_integer_),
+        case_when(
+          ThirdPartyDollars ~ 1L, 
+          !ThirdPartyDollars ~ 0L, 
+          TRUE ~ NA_integer_
+        ),
       BinaryBankStEqualBorrowerSt = 
         case_when(
           as.character(BorrState) == as.character(CDC_State) ~ 1L, 
@@ -284,6 +208,11 @@ for (i in 1:periods){
           as.character(BorrState) != as.character(ProjectState) ~ 0L, 
           TRUE ~ NA_integer_
       ),
+      BinaryRepeatBorrower = case_when(
+          repeat_borr ~ 1L, 
+          !repeat_borr ~ 0L, 
+          TRUE ~ NA_integer_
+        ),
       LogGrossApproval = log(GrossApproval),
       LogGDP = log(GDP),
       LogSP500 = log(GSPC.price),
@@ -292,18 +221,39 @@ for (i in 1:periods){
     )    
     
 }
-
-  
 ```
 
 
 ```{r}
-for(i in 1:periods){
+for (i in 1:periods) {
   raw_data_list[[i]] <-
-    raw_data_list[[i]] %<>%
+    raw_data_list[[i]] %>% 
+    mutate(
+      across(
+        .cols =
+          c(
+            LogGrossApproval,
+            TermInMonths,
+            LogGDP,
+            LogSP500,
+            LogFedFunds,
+            LogCPI,
+            URinProjectState,
+            URinBorrState
+          ),
+        .fns = ~ (. - mean(., na.rm = TRUE)) / (sd(., na.rm = TRUE))
+      )
+    )
+  
+  raw_data_list[[i]] <- 
+    raw_data_list[[i]][c("LogGrossApproval", "BinaryThirdPartyDollars", "TermInMonths", "LogGDP", "LogSP500", "LogFedFunds", "LogCPI", "URinProjectState", "URinBorrState", "BusinessType", "NAICS_Sector", "DeliveryMethod", "BinaryIntergerTerm", "BinaryRepeatBorrower", "BinaryBankStEqualBorrowerSt", "BinaryProjectStEqualBorrowerSt", "ApprovalFiscalYear", "BorrState", "ProjectState")]
+  
+  #Dealing with missing values!
+  raw_data_list[[i]] <- 
+    raw_data_list[[i]] %>% 
       mutate(
         across(
-          .cols =
+          .cols = 
             c(
               LogGrossApproval,
               TermInMonths,
@@ -314,123 +264,43 @@ for(i in 1:periods){
               URinProjectState,
               URinBorrState
             ),
-          .fns = ~ (. - mean(., na.rm = TRUE)) / (sd(., na.rm = TRUE))
-        )
+          .fns = ~ if_else(is.na(.), 0, .)
+        ),
+        across(
+          .cols = 
+            c(
+              BusinessType, 
+              NAICS_Sector, 
+              DeliveryMethod, 
+              BinaryIntergerTerm, 
+              BinaryRepeatBorrower, 
+              BinaryBankStEqualBorrowerSt, 
+              BinaryProjectStEqualBorrowerSt, 
+              ApprovalFiscalYear, 
+              BorrState, 
+              ProjectState, 
+              BinaryThirdPartyDollars
+            ),
+          .fns = ~ if_else(is.na(.), "Blank", as.character(.))
       )
-}
-
-
-```
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# Ignore for now - extra code
-DOWN HERE I USE ACTUAL RAW_DATA
-
-First, I find the terminus of each loan. 
-
-```{r}
-raw_data <- 
-  raw_data %>% 
-  rename(ApprovalFiscalYear = ApprovalFiscalYear) %>% 
-  mutate(
-    term_years = TermInMonths %/% 12,
-    terminus = 
-      case_when(
-        !is.na(ChargeOffDate) ~ as.integer(substring(ChargeOffDate, 0, 4)), # Loan is charged off
-        ApprovalFiscalYear + term_years <= 2013 ~ as.integer(ApprovalFiscalYear + term_years),  # Loan is paid in full prior to end of dataset
-        ApprovalFiscalYear + term_years > 2013 ~ as.integer(2013),
-        TRUE ~ NA_integer_
-      )
-  ) %>% 
-  select(GrossApproval, ApprovalFiscalYear, terminus, term_years, GrossChargeOffAmount)
-
-raw_data_tiny <-
-  raw_data_small[1:10,]
-```
-
-Now, I copy the raw_data set as many times as there are years in our data set. 
-```{r}
-raw_data_list <- list()
-
-# One Year Scenario -> we run from 1990 to 2014, total of 25 years including 1990. i = 1:25
-# 5 year scenario -> we run from 1990 to 2014, total of five 5-year periods. i = 1:5
-
-periods <- 5 #CAN ONLY TAKE ON THE VALUE OF 5 OR 25
-
-for (i in 1:periods) { #needs to 
-  raw_data_list[[i]] = raw_data
+  )
 }
 ```
 
-Now that I've got my list of data sets, I'm going to walk through that list and eliminate the inactive loans within each of the list's elements.
-```{r}
-# for (i in 1:periods) {
-#   
-#   if (periods == 5) {
-#     year = 1990 + 5*(i - 1)
-#   } else {
-#     year = 1990 + i - 1
-#   }
-# 
-#   raw_data_list[[i]] <- 
-#     raw_data_list[[i]] %>%
-#     filter(
-#       ApprovalFiscalYear <= year,
-#       year <= terminus
-#     )
-# }
-```
 
-
+Exporting the Data
 ```{r}
 for (i in 1:periods) {
   
-  if (periods == 5) {
-    active_years = seq(1990 + 5*(i - 1), 1990 + 5*i, 1)
-    raw_data_list[[i]] <- 
-    raw_data_list[[i]] %>%
-    filter(
-      ApprovalFiscalYear %in% active_years | ApprovalFiscalYear < active_years[1],
-      terminus %in% active_years | terminus > active_years[6]
+  file_name <- 
+    if_else(
+      periods == 5,
+      paste("5year_VARdata_period", "_", as.character(i), ".csv", sep = ""),
+      paste("1year_VARdata_period", "_", as.character(i), ".csv", sep = "")
     )
-  } else {
-    curr_year = 1990 + i - 1
-    raw_data_list[[i]] <- 
-    raw_data_list[[i]] %>%
-    filter(
-      ApprovalFiscalYear <= curr_year,
-      curr_year <= terminus
-    )
-  }
   
+  write_csv(raw_data_list[[i]], path = here(file_name))
 }
-
-raw_data_list
 ```
+
+
