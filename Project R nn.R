@@ -1,7 +1,8 @@
 #Neural Net
-#install.packages("neuralnet")
+#install.packages("ROCR")
 library(neuralnet)
 library(ROCR)
+
 
 modified_data = read.csv("modified_data.csv", header = TRUE)
 
@@ -36,38 +37,29 @@ auc_compute = function(nn,data){
 }
 
 nn_log = neuralnet(Default ~., data = train_data, hidden= c(3), linear.output = FALSE)
-nn_tanh = neuralnet(Default ~., data = train_data, hidden= c(3),  act.fct = 'tanh', linear.output = FALSE)
+#nn_tanh = neuralnet(Default ~., data = train_data, hidden= c(3),rep = 2, threshold = .05, act.fct = 'tanh', linear.output = FALSE)
 #nn_softplus = neuralnet(Default ~., data = train_data, hidden= c(3), act.fct = softplus, linear.output = FALSE)
 #nn_swish = neuralnet(Default ~., data = train_data, hidden= c(3),  act.fct = swish, linear.output = FALSE)
 
 #Training AUC
 auc_compute(nn_log,train_data)
 #Validation AUC
-auc_train =c(auc_compute(nn_log,train_data),
-             auc_compute(nn_tanh,train_data))
-#auc_compute(nn_softplus,train_data),
-#auc_compute(nn_swish,train_data))
-auc_val =c(auc_compute(nn_log,validation_data),
-           auc_compute(nn_tanh,validation_data),
-           auc_compute(nn_softplus,validation_data),
-           auc_compute(nn_swish,validation_data))
-best_auc = which.max(auc_val)
-#2 tanh
-
-#...
+auc_compute(nn_log,validation_data)
+############################
+#Best Architecture
 
 #Validation: Hidden Variables  with Default 2 hidden layers & best Act Fn
-auc_arch = vector()
-arch_list = c(c(3), c(5), c(2,1), c(4,2), c(6,2), c(8,4), c(16,8), c(6,3,2))
+arch_list = c(c(3), c(5), c(2,1), c(3,1), c(3,2), c(4,1), c(4,2), c(6,2), c(8,4))
 
-nn1 = neuralnet(Default ~., data = train_data_2, hidden= arch_list[1], threshold = .05, act.fct = 'tanh', linear.output = FALSE)
-nn2 = neuralnet(Default ~., data = train_data_2, hidden= arch_list[2], threshold = .05, act.fct = 'tanh', linear.output = FALSE)
-nn3 = neuralnet(Default ~., data = train_data_2, hidden= arch_list[3], threshold = .05, act.fct = 'tanh', linear.output = FALSE)
-nn4 = neuralnet(Default ~., data = train_data_2, hidden= arch_list[4], threshold = .05, act.fct = 'tanh', linear.output = FALSE)
-nn5 = neuralnet(Default ~., data = train_data_2, hidden= arch_list[5], threshold = .05, act.fct = 'tanh', linear.output = FALSE)
-nn6 = neuralnet(Default ~., data = train_data_2, hidden= arch_list[6], threshold = .04, act.fct = 'tanh', linear.output = FALSE)
-nn7 = neuralnet(Default ~., data = train_data_2, hidden= arch_list[7], threshold = .04, act.fct = 'tanh', linear.output = FALSE)
-nn8 = neuralnet(Default ~., data = train_data_2, hidden= arch_list[8], threshold = .02, act.fct = 'tanh', linear.output = FALSE)
+nn1 = neuralnet(Default ~., data = train_data_2, hidden= arch_list[1], linear.output = FALSE)
+nn2 = neuralnet(Default ~., data = train_data_2, hidden= arch_list[2], linear.output = FALSE)
+nn3 = neuralnet(Default ~., data = train_data_2, hidden= arch_list[3], linear.output = FALSE)
+nn4 = neuralnet(Default ~., data = train_data_2, hidden= arch_list[4], linear.output = FALSE)
+nn5 = neuralnet(Default ~., data = train_data_2, hidden= arch_list[5], linear.output = FALSE)
+nn6 = neuralnet(Default ~., data = train_data_2, hidden= arch_list[6], linear.output = FALSE)
+nn7 = neuralnet(Default ~., data = train_data_2, hidden= arch_list[7], linear.output = FALSE)
+nn8 = neuralnet(Default ~., data = train_data_2, hidden= arch_list[8], linear.output = FALSE)
+nn9 = neuralnet(Default ~., data = train_data_2, hidden= arch_list[9], linear.output = FALSE)
 
 auc_val_arch =c(auc_compute(nn1,validation_data),
                 auc_compute(nn2,validation_data),
@@ -76,30 +68,49 @@ auc_val_arch =c(auc_compute(nn1,validation_data),
                 auc_compute(nn5,validation_data),
                 auc_compute(nn6,validation_data),
                 auc_compute(nn7,validation_data),
-                auc_compute(nn8,validation_data))
+                auc_compute(nn8,validation_data),
+                auc_compute(nn9,validation_data))
 auc_val_arch
-best_arch_index = which.max(AUC_arch)
-best_arch_AUC = max(AUC_arch)
-#best_arch = architectures[best_arch_index]
-best_arch = c(4)
+best_arch_index = which.max(auc_val_arch)
+best_auc.val = max(auc_val_arch)
+best_arch = arch_list[best_arch_index]
 
-best_nn = neuralnet(Default ~., data = train_data, hidden= best_arch, threshold = .05, act.fct = 'tanh', linear.output = FALSE)
-best_auc = auc_compute(best_nn,test_data)
+#########################
+#EPOCHS
 
-save(best_nn, file = "trained_model.RData")
-#First attempt to scale in training to avoid that issue
-#m <- colMeans(training)
-#s <- apply(training, 2, sd)
-#training <- scale(training, center = m, scale = s)
-#test <- scale(test, center = m, scale = s)
+epoch_auc.train = vector()
+epoch_auc.val = vector()
+count = vector()
+for(i in 1:10){
+  epoch_nn = neuralnet(Default ~., data = train_data, hidden= best_arch,rep = i, linear.output = FALSE)
+  auc.train = auc_compute(epoch_nn,train_data)
+  auc.val = auc_compute(epoch_nn,validation_data)
+  epoch_auc.train = append(epoch_auc.train, auc.train)
+  epoch_auc.val = append(epoch_auc.val, auc.val)
+}
+epoch_auc.train
+epoch_auc.val
 
-# then attempt 
+best_epoch = which.max(epoch_auc.val)
+best_epoch_auc.val = max(epoch_auc.val)
+
+##########################
+#Final Model
+
+best_nn = neuralnet(Default ~., data = train_data, hidden= best_arch, rep = best_epoch, linear.output = FALSE)
+best_auc.val = auc_compute(best_nn,validation_data)
+best_auc.test = auc_compute(best_nn,test_data)
+
+best_auc.val
+best_auc.test
+#save(best_nn, file = "trained_nn.RData")
+
 ##############################
 #EVALUATION
 #Explain fitting results via LOO tests
 #install.packages("caret")
 library(caret)
-load("trained_model.RData")
+load("trained_nn.RData")
 ##AUC
 auc_compute(best_nn,test_data)
 ##ROC Curve
