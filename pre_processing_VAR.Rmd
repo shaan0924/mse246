@@ -56,7 +56,7 @@ First, I find the terminus of each loan.
 
 ```{r}
 raw_data_small <- 
-  raw_data_small %>% 
+  raw_data_small %<>% 
   mutate(
     term_years = TermInMonths %/% 12,
     terminus = 
@@ -94,7 +94,7 @@ for (i in 1:periods) {
   if (periods == 5) {
     active_years = seq(1990 + 5*(i - 1), 1990 + 5*i, 1)
     raw_data_list[[i]] <- 
-    raw_data_list[[i]] %>%
+    raw_data_list[[i]] %<>%
     filter(
       ApprovalFiscalYear %in% active_years | ApprovalFiscalYear < active_years[1],
       terminus %in% active_years | terminus > active_years[6]
@@ -102,7 +102,7 @@ for (i in 1:periods) {
   } else {
     curr_year = 1990 + i - 1
     raw_data_list[[i]] <- 
-    raw_data_list[[i]] %>%
+    raw_data_list[[i]] %<>%
     filter(
       ApprovalFiscalYear <= curr_year,
       curr_year <= terminus
@@ -137,8 +137,8 @@ Prepping the GDP Data
 
 ```{r}
 GDP <- 
-  GDP %>% 
-  transmute(month.bin = DATE, GDP = GDP) %>% 
+  GDP %<>% 
+  transmute(month.bin = DATE, GDP = GDP) %<>% 
   transmute(
     GDP,
     quarter.bin =
@@ -162,7 +162,7 @@ SP500 <-
 
 Testing 
 ```{r}
-raw_data_tiny %>% 
+raw_data_tiny %<>% 
   mutate(
     quarter.bin =
       case_when(
@@ -171,15 +171,15 @@ raw_data_tiny %>%
         as.numeric(substring(ApprovalDate, 6, 7)) < 4                                                    ~ paste("Q1", substring(ApprovalDate, 0, 4)),
         TRUE                                                                                             ~ paste("Q4", substring(ApprovalDate, 0, 4)),
       )
-  ) %>% 
-  left_join(y = GDP, by = "quarter.bin") %>% 
-  subset(select = -quarter.bin) %>% 
-  left_join(y = SP500, by = "month.bin") %>% 
-  left_join(y = FEDFUNDS, by = c("month.bin" = "DATE")) %>% 
+  ) %<>% 
+  left_join(y = GDP, by = "quarter.bin") %<>% 
+  subset(select = -quarter.bin) %<>% 
+  left_join(y = SP500, by = "month.bin") %<>% 
+  left_join(y = FEDFUNDS, by = c("month.bin" = "DATE")) %<>% 
   left_join(y = CPI, by = c("month.bin" = "DATE")) %>% 
-  left_join(y = UnemploymentUSbyState, by = c("ProjectState" = "State", "month.bin" = "DATE")) %>% 
-  rename(URinBorrState = UR) %>% 
-  left_join(y = UnemploymentUSbyState, by = c("BorrState" = "State", "month.bin" = "DATE")) %>% 
+  left_join(y = UnemploymentUSbyState, by = c("ProjectState" = "State", "month.bin" = "DATE")) %<>% 
+  rename(URinBorrState = UR) %<>% 
+  left_join(y = UnemploymentUSbyState, by = c("BorrState" = "State", "month.bin" = "DATE")) %<>% 
   rename(URinProjectState = UR) %>% 
   mutate(
     BinaryIntergerTerm = case_when(TermInMonths %% 12 == 0 ~ 1L, TRUE ~ 0L),
@@ -208,7 +208,7 @@ raw_data_tiny %>%
 Chopped off this normalization bit! You'll have to re-attach it.
 
 ```{r}
-%>%
+raw_data_tiny %<>%
   mutate(
     across(
       .cols =
@@ -222,7 +222,7 @@ Chopped off this normalization bit! You'll have to re-attach it.
           URinProjectState,
           URinBorrState
         ),
-      .fns = ~ (. - mean(., na.rm = TRUE)) / (c + sd(., na.rm = TRUE))
+      .fns = ~ (. - mean(., na.rm = TRUE)) / (sd(., na.rm = TRUE))
     )
   )
   
@@ -249,7 +249,7 @@ Adding all of the data
 
 for (i in 1:periods){
   raw_data_list[[i]] <- 
-    raw_data_list[[i]] %>% 
+    raw_data_list[[i]] %<>% 
     mutate(
       quarter.bin =
         case_when(
@@ -258,10 +258,38 @@ for (i in 1:periods){
           as.numeric(substring(ApprovalDate, 6, 7)) < 4                                                    ~ paste("Q1", substring(ApprovalDate, 0, 4)),
           TRUE                                                                                             ~ paste("Q4", substring(ApprovalDate, 0, 4)),
         )
-    ) %>% 
-    left_join(y = GDP, by = "quarter.bin") %>% 
-    subset(select = -quarter.bin) %>%    # Up to here, I've added GDP. Onto S&P 500
-    
+    ) %<>% 
+    left_join(y = GDP, by = "quarter.bin") %<>% 
+    subset(select = -quarter.bin) %<>%    # Up to here, I've added GDP. Onto S&P 500
+    left_join(y = SP500, by = "month.bin") %<>% 
+    left_join(y = FEDFUNDS, by = c("month.bin" = "DATE")) %<>% 
+    left_join(y = CPI, by = c("month.bin" = "DATE")) %>% 
+    left_join(y = UnemploymentUSbyState, by = c("ProjectState" = "State", "month.bin" = "DATE")) %<>% 
+    rename(URinBorrState = UR) %<>% 
+    left_join(y = UnemploymentUSbyState, by = c("BorrState" = "State", "month.bin" = "DATE")) %<>% 
+    rename(URinProjectState = UR) %>% 
+    mutate(
+      BinaryIntergerTerm = case_when(TermInMonths %% 12 == 0 ~ 1L, TRUE ~ 0L),
+      BinaryThirdPartyDollars = 
+        case_when(ThirdPartyDollars ~ 1L, !ThirdPartyDollars ~ 0L, TRUE ~ NA_integer_),
+      BinaryBankStEqualBorrowerSt = 
+        case_when(
+          as.character(BorrState) == as.character(CDC_State) ~ 1L, 
+          as.character(BorrState) != as.character(CDC_State)~ 0L,
+          TRUE ~ NA_integer_
+      ),
+      BinaryProjectStEqualBorrowerSt =
+        case_when(
+          as.character(BorrState) == as.character(ProjectState) ~ 1L, 
+          as.character(BorrState) != as.character(ProjectState) ~ 0L, 
+          TRUE ~ NA_integer_
+      ),
+      LogGrossApproval = log(GrossApproval),
+      LogGDP = log(GDP),
+      LogSP500 = log(GSPC.price),
+      LogFedFunds = log(FEDFUNDS),
+      LogCPI = log(CPIAUCSL)
+    )    
     
 }
 
@@ -269,6 +297,30 @@ for (i in 1:periods){
 ```
 
 
+```{r}
+for(i in 1:periods){
+  raw_data_list[[i]] <-
+    raw_data_list[[i]] %<>%
+      mutate(
+        across(
+          .cols =
+            c(
+              LogGrossApproval,
+              TermInMonths,
+              LogGDP,
+              LogSP500,
+              LogFedFunds,
+              LogCPI,
+              URinProjectState,
+              URinBorrState
+            ),
+          .fns = ~ (. - mean(., na.rm = TRUE)) / (sd(., na.rm = TRUE))
+        )
+      )
+}
+
+
+```
 
 
 
