@@ -55,8 +55,8 @@ Active here is defined as the following: the loan was approved in or before that
 First, I find the terminus of each loan. 
 
 ```{r}
-raw_data <- 
-  raw_data %>% 
+raw_data_small <- 
+  raw_data_small %>% 
   mutate(
     term_years = TermInMonths %/% 12,
     terminus = 
@@ -82,7 +82,7 @@ raw_data_list <- list()
 periods <- 5 #CAN ONLY TAKE ON THE VALUE OF 5 OR 25
 
 for (i in 1:periods) { 
-  raw_data_list[[i]] = raw_data
+  raw_data_list[[i]] = raw_data_small
 }
 ```
 
@@ -139,7 +139,8 @@ Prepping the GDP Data
 GDP <- 
   GDP %>% 
   transmute(month.bin = DATE, GDP = GDP) %>% 
-  mutate(
+  transmute(
+    GDP,
     quarter.bin =
       case_when(
         as.numeric(substring(month.bin, 6, 7)) < 10 & as.numeric(substring(month.bin, 6, 7)) >= 7  ~ paste("Q3", substring(month.bin, 0, 4)),
@@ -181,27 +182,33 @@ raw_data_tiny %>%
   left_join(y = UnemploymentUSbyState, by = c("BorrState" = "State", "month.bin" = "DATE")) %>% 
   rename(URinProjectState = UR) %>% 
   mutate(
-    BinaryIntergerTerm = case_when(TermInMonths %% 12 == 0 ~ 1, TRUE ~ 0),
+    BinaryIntergerTerm = case_when(TermInMonths %% 12 == 0 ~ 1L, TRUE ~ 0L),
     BinaryThirdPartyDollars = 
-      case_when(ThirdPartyDollars ~ 1, !ThirdPartyDollars ~ 0, TRUE ~ as.double(NA)),
+      case_when(ThirdPartyDollars ~ 1L, !ThirdPartyDollars ~ 0L, TRUE ~ NA_integer_),
     BinaryBankStEqualBorrowerSt = 
       case_when(
-        as.character(BorrState) == as.character(CDC_State) ~ 1, 
-        as.character(BorrState) != as.character(CDC_State)~ 0,
+        as.character(BorrState) == as.character(CDC_State) ~ 1L, 
+        as.character(BorrState) != as.character(CDC_State)~ 0L,
         TRUE ~ NA_integer_
     ),
     BinaryProjectStEqualBorrowerSt =
       case_when(
-        as.character(BorrState) == as.character(ProjectState) ~ 1, 
-        as.character(BorrState) != as.character(ProjectState) ~ 0, 
+        as.character(BorrState) == as.character(ProjectState) ~ 1L, 
+        as.character(BorrState) != as.character(ProjectState) ~ 0L, 
         TRUE ~ NA_integer_
     ),
     LogGrossApproval = log(GrossApproval),
     LogGDP = log(GDP),
     LogSP500 = log(GSPC.price),
-    LogFedFunds = log(FedFunds),
-    LogCPI = log(CPI)
-  ) %>%
+    LogFedFunds = log(FEDFUNDS),
+    LogCPI = log(CPIAUCSL)
+  )
+```
+
+Chopped off this normalization bit! You'll have to re-attach it.
+
+```{r}
+%>%
   mutate(
     across(
       .cols =
@@ -219,7 +226,7 @@ raw_data_tiny %>%
     )
   )
   
-
+raw_data_tiny %>% select(month.bin)
   
 ```
 
