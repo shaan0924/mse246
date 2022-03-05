@@ -1,8 +1,8 @@
 #Neural Net
 #install.packages("ROCR")
+library(glmnet)
 library(neuralnet)
 library(ROCR)
-
 
 modified_data = read.csv("modified_data.csv", header = TRUE)
 
@@ -29,18 +29,18 @@ hidden_variables = c(2, 4, 8, 16, 32)
 
 #AUC
 auc_compute = function(nn,data){
-  nn_prediction = compute(nn,data)
+  nn_prediction = neuralnet::compute(nn,data)
   nn_prediction = as.vector(nn_prediction$net.result)
   nn_prediction = prediction(nn_prediction, data$Default)
   auc = unlist(slot(performance(nn_prediction, 'auc'), 'y.values'))
   return(auc)
 }
 
-nn_log = neuralnet(Default ~., data = train_data, hidden= c(3), linear.output = FALSE)
+nn_log = neuralnet(Default ~., data = train_data_2, hidden= c(3), linear.output = FALSE)
 #nn_tanh = neuralnet(Default ~., data = train_data, hidden= c(3),rep = 2, threshold = .05, act.fct = 'tanh', linear.output = FALSE)
 #nn_softplus = neuralnet(Default ~., data = train_data, hidden= c(3), act.fct = softplus, linear.output = FALSE)
 #nn_swish = neuralnet(Default ~., data = train_data, hidden= c(3),  act.fct = swish, linear.output = FALSE)
-
+predict(nn_log,train_data, type="raw")
 #Training AUC
 auc_compute(nn_log,train_data)
 #Validation AUC
@@ -51,15 +51,15 @@ auc_compute(nn_log,validation_data)
 #Validation: Hidden Variables  with Default 2 hidden layers & best Act Fn
 arch_list = c(c(3), c(5), c(2,1), c(3,1), c(3,2), c(4,1), c(4,2), c(6,2), c(8,4))
 
-nn1 = neuralnet(Default ~., data = train_data_2, hidden= arch_list[1], linear.output = FALSE)
-nn2 = neuralnet(Default ~., data = train_data_2, hidden= arch_list[2], linear.output = FALSE)
-nn3 = neuralnet(Default ~., data = train_data_2, hidden= arch_list[3], linear.output = FALSE)
-nn4 = neuralnet(Default ~., data = train_data_2, hidden= arch_list[4], linear.output = FALSE)
-nn5 = neuralnet(Default ~., data = train_data_2, hidden= arch_list[5], linear.output = FALSE)
-nn6 = neuralnet(Default ~., data = train_data_2, hidden= arch_list[6], linear.output = FALSE)
-nn7 = neuralnet(Default ~., data = train_data_2, hidden= arch_list[7], linear.output = FALSE)
-nn8 = neuralnet(Default ~., data = train_data_2, hidden= arch_list[8], linear.output = FALSE)
-nn9 = neuralnet(Default ~., data = train_data_2, hidden= arch_list[9], linear.output = FALSE)
+nn1 = neuralnet(Default ~., data = train_data_2, hidden= arch_list[1], err.fct = "ce", linear.output = FALSE)
+nn2 = neuralnet(Default ~., data = train_data_2, hidden= arch_list[2], err.fct = "ce", linear.output = FALSE)
+nn3 = neuralnet(Default ~., data = train_data_2, hidden= arch_list[3], err.fct = "ce", linear.output = FALSE)
+nn4 = neuralnet(Default ~., data = train_data_2, hidden= arch_list[4], err.fct = "ce", linear.output = FALSE)
+nn5 = neuralnet(Default ~., data = train_data_2, hidden= arch_list[5], err.fct = "ce", linear.output = FALSE)
+nn6 = neuralnet(Default ~., data = train_data_2, hidden= arch_list[6], err.fct = "ce", linear.output = FALSE)
+nn7 = neuralnet(Default ~., data = train_data_2, hidden= arch_list[7], err.fct = "ce", linear.output = FALSE)
+nn8 = neuralnet(Default ~., data = train_data_2, hidden= arch_list[8], err.fct = "ce", linear.output = FALSE)
+nn9 = neuralnet(Default ~., data = train_data_2, hidden= arch_list[9], err.fct = "ce", linear.output = FALSE)
 
 auc_val_arch =c(auc_compute(nn1,validation_data),
                 auc_compute(nn2,validation_data),
@@ -82,7 +82,7 @@ epoch_auc.train = vector()
 epoch_auc.val = vector()
 count = vector()
 for(i in 1:10){
-  epoch_nn = neuralnet(Default ~., data = train_data, hidden= best_arch,rep = i, linear.output = FALSE)
+  epoch_nn = neuralnet(Default ~., data = train_data, hidden= best_arch,rep = i, err.fct = "ce", linear.output = FALSE)
   auc.train = auc_compute(epoch_nn,train_data)
   auc.val = auc_compute(epoch_nn,validation_data)
   epoch_auc.train = append(epoch_auc.train, auc.train)
@@ -93,11 +93,30 @@ epoch_auc.val
 
 best_epoch = which.max(epoch_auc.val)
 best_epoch_auc.val = max(epoch_auc.val)
-
+#########################
+#LOO
+#install.packages("gridExtra")
+library(gridExtra)
+library(grid)
+cols = colnames(train_data)
+cols = cols[cols != "Default" ]
+auc_list.LOO = c() 
+for( i in 1:length(cols)){
+  excluded = cols[i]
+  nn.LOO = neuralnet(Default ~. - excluded, data = train_data, hidden = best_arch, rep = best_epoch, linear.output = FALSE)
+  auc.LOO = auc_compute(nn.LOO,validation_data)
+  auc_list.LOO = c(auc_list.LOO, auc.LOO)
+}
+ranked_cols = cols[order(auc_list.LOO)]
+ranked_auc = auc_list.LOO[order(auc_list.LOO)]
+d = data.frame(unlist(ranked_cols[1:10]),unlist(ranked_auc[1:10]))
+names(d) = c("Column names","AUC values")
+grid.table(d)
+best_auc.val
 ##########################
 #Final Model
 
-best_nn = neuralnet(Default ~., data = train_data, hidden= best_arch, rep = best_epoch, linear.output = FALSE)
+best_nn = neuralnet(Default ~., data = train_data, hidden= best_arch, rep = best_epoch, err.fct = "ce", linear.output = FALSE)
 best_auc.val = auc_compute(best_nn,validation_data)
 best_auc.test = auc_compute(best_nn,test_data)
 
@@ -111,9 +130,11 @@ best_auc.test
 #install.packages("caret")
 library(caret)
 load("trained_nn.RData")
+load("trained_L1_log_model.RData")
 ##AUC
 auc_compute(best_nn,test_data)
-##ROC Curve
+
+##ROC Curve NN
 nn_pred.train = compute(best_nn,train_data)
 nn_pred.train = as.vector(nn_pred.train$net.result)
 nn_pred.train = prediction(nn_pred.train, train_data$Default)
@@ -128,6 +149,28 @@ plot(roc_train.nn, col = 'red', main = 'NN Model Training ROC (red) vs. NN Test 
 plot(roc_test.nn, add = TRUE, col = 'blue')
 abline(a = 0, b = 1)
 
+##ROC Curve LR comparision NN
+##Log-R data
+log_model_data = read.csv("log_model_data.csv", header = TRUE)
+
+train_size = round((nrow(log_model_data)/10)*7, 0)
+validation_size = round((nrow(log_model_data)/10), 0)
+test_size = nrow(log_model_data) - train_size - validation_size
+
+raw_train_data = log_model_data[0:train_size,]
+raw_validation_data = log_model_data[(train_size+1):(train_size+validation_size),]
+raw_test_data = log_model_data[(train_size+validation_size+1):nrow(log_model_data),]
+
+train_data.log = subset(raw_train_data, select = -c(GrossApproval, GrossChargeOffAmount))
+validation_data.log = subset(raw_validation_data, select = -c(GrossApproval, GrossChargeOffAmount))
+test_data.log = subset(raw_test_data, select = -c(GrossApproval, GrossChargeOffAmount))
+##ROC
+x_test = model.matrix(Default ~., test_data.log)[, -1]
+prediction_test = predict(model_L1, newx = x_test, s = best_L1_lambda, type = "response")
+log_model_test_prediction = prediction(prediction_test, test_data.log$Default)
+
+roc_test = performance(log_model_test_prediction,"tpr","fpr")
 plot(roc_test, col = 'red', main = 'Basic Logistic Model Test ROC (red) vs. NN Model Test ROC (blue)')
 plot(roc_test.nn, add = TRUE, col = 'blue')
+legend(x = "bottomright", legend = c("Training ROC", "Testing ROC"), lty = c(1, 1), col = c("red", "blue"), lwd = 1)
 abline(a = 0, b = 1)
