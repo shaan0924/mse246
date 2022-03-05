@@ -1,4 +1,3 @@
-#install.packages("fastDummies")
 library(lubridate)
 library(quantmod)
 library(tidyverse)
@@ -7,14 +6,14 @@ library("xlsx")
 library("dplyr")
 library("Matrix")
 library(fastDummies)
-#setwd("/Users/jackparkin/Desktop/MS&E 246/Project/mse246")
+setwd("/Users/jackparkin/Desktop/MS&E 246/Project")
 setwd("/Users/sihguat/Desktop/MSE_246/mse246")
 ############
 #Data Import
 ############
 #raw_data_xlxs = read_excel('SBA Loan data .xlsx')
 #write.csv(raw_data_xlxs,"SBA Loan data .csv", row.names = FALSE)
-raw_data = read.csv("SBA Loan data .csv", header = TRUE)
+raw_data = read.csv("SBA Loan data .csv", header = TRUE, na.strings=c("","NA"))
 
 #################
 #Data Exploration
@@ -143,20 +142,6 @@ temp = raw_data %>% drop_na(TermLength) %>% group_by(ApprovalFiscalYear, TermLen
 
 ggplot(data=temp, aes(x=ApprovalFiscalYear, y= `Annual Default Rate`, group = TermLength, color = TermLength)) + geom_point() + geom_line() + ggtitle("Approval Year vs. Annual Default Rate by Term Length") + xlab("Approval Year") + ylab("Annual Default Rate") 
 
-############
-#IMPORTS
-############
-#GDP Import
-GDP = read.csv("GDP.csv")
-#SP500 Import
-SP500 = getSymbols("^GSPC",from = "1990-01-31",to = "2014-12-31", periodicity = 'monthly', auto.assign = FALSE)
-#FedFunds Import
-FEDFUNDS = read.csv("FEDFUNDS.csv")
-#CPI Import (Consumer Price Index for All Urban Consumers: All Items in U.S. City Average)
-CPI = read.csv("CPIAUCSL.csv")
-#Unemployment
-UnemploymentUSbyState = read.csv('StateUR.csv', header = TRUE)
-
 ##############
 #Preprocessing
 ##############
@@ -168,12 +153,64 @@ raw_data = raw_data[!(raw_data$ProjectState %in% unidentified.states),]
 
 unidentified.states.Borr = unique(raw_data$BorrState[!(raw_data$BorrState %in% unique(UnemploymentUSbyState$State))])
 
+###################
+#BinaryIntergerTerm
+raw_data$BinaryIntergerTerm[raw_data$TermInMonths %% 12 == 0] = 1
+raw_data$BinaryIntergerTerm[raw_data$TermInMonths %% 12 != 0] = 0
+
+#####################
+#BinaryRepeatBorrower
+temp = duplicated(raw_data$BorrName)
+raw_data$BinaryRepeatBorrower[temp == TRUE] = 1
+raw_data$BinaryRepeatBorrower[temp == FALSE] = 0
+
+############################
+#BinaryBankStEqualBorrowerSt
+
+raw_data$BinaryBankStEqualBorrowerSt[as.character(raw_data$BorrState) == as.character(raw_data$CDC_State)] = 1
+raw_data$BinaryBankStEqualBorrowerSt[as.character(raw_data$BorrState)!= as.character(raw_data$CDC_State)] = 0
+
+###############################
+#BinaryProjectStEqualBorrowerSt
+
+raw_data$BinaryProjectStEqualBorrowerSt[as.character(raw_data$BorrState) == as.character(raw_data$ProjectState)] = 1
+raw_data$BinaryProjectStEqualBorrowerSt[as.character(raw_data$BorrState) != as.character(raw_data$ProjectState)] = 0
+
 ###################################
-#UnemploymentInProjectState
-# MIGHT NEED TO USE THIS INSTEAD - raw_data$ApprovalDate = as.Date(raw_data$ApprovalDate, "%m/%d/%y")
-raw_data$ApprovalDate = as.Date(raw_data$ApprovalDate)
+#Modifing Multiperiod
+# MIGHT NEED TO USE THIS INSTEAD - 
+raw_data$ApprovalDate = as.Date(raw_data$ApprovalDate, "%m/%d/%y")
 temp.data = transform(raw_data, month.bin = cut(ApprovalDate, breaks = "month"))
 
+disc_cols = c("BusinessType", "NAICS_Sector", "DeliveryMethod", "BorrState", "ProjectState")
+temp = temp.data[disc_cols]
+temp[is.na(temp)] = "Blank"
+categorical_cols = disc_cols[apply(temp,2,function(x) { !all(x %in% 0:1) })]
+
+#Categorical (to add dummy variables but excludes binary)
+temp.data[disc_cols] = temp
+temp.data = dummy_cols(temp.data, select_columns = categorical_cols)
+names(temp.data) = make.names(names(temp.data), unique=TRUE)
+
+write_csv(temp.data, "input_pre_processing_VAR.csv")
+
+############
+#IMPORTS
+############
+#GDP Import
+GDP = read.csv("GDP.csv")
+#SP500 Import
+SP500 = getSymbols("^GSPC",from = "1990-01-01",to = "2014-12-31", periodicity = 'monthly', auto.assign = FALSE)
+#FedFunds Import
+FEDFUNDS = read.csv("FEDFUNDS.csv")
+#CPI Import (Consumer Price Index for All Urban Consumers: All Items in U.S. City Average)
+CPI = read.csv("CPIAUCSL.csv")
+#Unemployment
+UnemploymentUSbyState = read.csv('StateUR.csv', header = TRUE)
+
+###################################
+#UnemploymentInProjectState
+temp.data = transform(raw_data, month.bin = cut(ApprovalDate, breaks = "month"))
 tempUR = rename(UnemploymentUSbyState, month.bin = DATE, ProjectState = State, URinProjectState = UR)
 temp = merge(x=temp.data,y=tempUR,by=c("ProjectState","month.bin"))
 
@@ -217,29 +254,6 @@ tempCPI = transmute(CPI, month.bin = DATE, CPI = CPIAUCSL)
 temp = merge(x=temp,y=tempCPI,by="month.bin")
 raw_data = subset(temp, select = -month.bin)
 
-###################
-#BinaryIntergerTerm
-raw_data$BinaryIntergerTerm[raw_data$TermInMonths %% 12 == 0] = 1
-raw_data$BinaryIntergerTerm[raw_data$TermInMonths %% 12 != 0] = 0
-
-#####################
-#BinaryRepeatBorrower
-temp = duplicated(raw_data$BorrName)
-raw_data$BinaryRepeatBorrower[temp == TRUE] = 1
-raw_data$BinaryRepeatBorrower[temp == FALSE] = 0
-
-############################
-#BinaryBankStEqualBorrowerSt
-
-raw_data$BinaryBankStEqualBorrowerSt[as.character(raw_data$BorrState) == as.character(raw_data$CDC_State)] = 1
-raw_data$BinaryBankStEqualBorrowerSt[as.character(raw_data$BorrState)!= as.character(raw_data$CDC_State)] = 0
-
-###############################
-#BinaryProjectStEqualBorrowerSt
-
-raw_data$BinaryProjectStEqualBorrowerSt[as.character(raw_data$BorrState) == as.character(raw_data$ProjectState)] = 1
-raw_data$BinaryProjectStEqualBorrowerSt[as.character(raw_data$BorrState) != as.character(raw_data$ProjectState)] = 0
-
 ###############################
 #Cleaning/Splitting Data
 ###############################
@@ -253,20 +267,20 @@ raw_data$LogFedFunds = log(raw_data$FedFunds)
 raw_data$LogCPI = log(raw_data$CPI)
 raw_data$LogThirdPartyDollars = log(raw_data$ThirdPartyDollars)
 
-log_model_data = raw_data[c("LogGrossApproval", "LogThirdPartyDollars", "TermInMonths", "LogGDP", "LogSP500", "LogFedFunds", "LogCPI", "URinProjectState", "URinBorrState", "BusinessType", "NAICS_Sector", "DeliveryMethod", "BinaryIntergerTerm", "BinaryRepeatBorrower", "BinaryBankStEqualBorrowerSt", "BinaryProjectStEqualBorrowerSt", "BorrState", "ProjectState", "GrossApproval", "GrossChargeOffAmount")]
+ log_model_data = raw_data[c("LogGrossApproval", "LogThirdPartyDollars", "TermInMonths", "LogGDP", "LogSP500", "LogFedFunds", "LogCPI", "URinProjectState", "URinBorrState", "BusinessType", "NAICS_Sector", "DeliveryMethod", "BinaryIntergerTerm", "BinaryRepeatBorrower", "BinaryBankStEqualBorrowerSt", "BinaryProjectStEqualBorrowerSt", "BorrState", "ProjectState", "GrossApproval", "GrossChargeOffAmount")]
 
 log_model_data$Default[raw_data$LoanStatus == "CHGOFF"] = 1
 log_model_data$Default[raw_data$LoanStatus != "CHGOFF"] = 0
 
 #Missing Values
 #Continuous
-continuous_cols = c("LogGrossApproval", "LogThirdPartyDollars", "TermInMonths", "LogGDP", "LogSP500", "LogFedFunds", "LogCPI", "URinProjectState", "URinBorrState")
+continuous_cols = c("LogGrossApproval", "LogThirdPartyDollars", "TermInMonths", "LogGDP", "LogSP500", "LogFedFunds", "LogCPI", "URinProjectState", "URinBorrState", "BinaryIntergerTerm", "BinaryRepeatBorrower", "BinaryBankStEqualBorrowerSt", "BinaryProjectStEqualBorrowerSt")
 temp = log_model_data[continuous_cols]
 temp[is.na(temp)] = 0
 log_model_data[continuous_cols] = temp
 
 #All Discrete
-disc_cols = c("BinaryIntergerTerm", "BinaryRepeatBorrower", "BinaryBankStEqualBorrowerSt", "BinaryProjectStEqualBorrowerSt", "BusinessType", "NAICS_Sector", "DeliveryMethod", "BorrState", "ProjectState")
+disc_cols = c("BusinessType", "NAICS_Sector", "DeliveryMethod", "BorrState", "ProjectState")
 temp = log_model_data[disc_cols]
 temp[is.na(temp)] = "Blank"
 categorical_cols = disc_cols[apply(temp,2,function(x) { !all(x %in% 0:1) })]
@@ -275,7 +289,6 @@ categorical_cols = disc_cols[apply(temp,2,function(x) { !all(x %in% 0:1) })]
 log_model_data[disc_cols] = temp
 log_model_data = dummy_cols(log_model_data, select_columns = categorical_cols, remove_selected_columns = TRUE)
 names(log_model_data) = make.names(names(log_model_data), unique=TRUE)
-log_model_data[continuous_cols] = as.data.frame(scale(log_model_data[continuous_cols]))
 
 write_csv(log_model_data, "log_model_data.csv")
 

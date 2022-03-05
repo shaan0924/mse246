@@ -19,6 +19,11 @@ library(QRM)
 setwd("/Users/jackparkin/Desktop/MS&E 246/Project")
 log_model_data = read.csv("log_model_data.csv", header = TRUE)
 
+continuous_cols = c("LogGrossApproval", "LogThirdPartyDollars", "TermInMonths", "LogGDP", "LogSP500", "LogFedFunds", "LogCPI", "URinProjectState", "URinBorrState")
+continuous_means = colMeans(log_model_data[continuous_cols])
+continuous_sd = colSums((log_model_data[continuous_cols] - continuous_means)^2)/(length(log_model_data[,1]))
+log_model_data[continuous_cols] = (log_model_data[continuous_cols] - continuous_means)/continuous_sd
+
 train_size = round((nrow(log_model_data)/10)*7, 0)
 validation_size = round((nrow(log_model_data)/10), 0)
 test_size = nrow(log_model_data) - train_size - validation_size
@@ -159,12 +164,12 @@ for (i in 1:N){
 
 lossDist_norm = fitdist(lossDist, "norm")
 numBins = round((max(lossDist) - min(lossDist))/(2*IQR(lossDist)/(length(lossDist)^(1/3))))
-hist(lossDist, breaks =  numBins, main = "Histogram of Inverse Sampling Loan Loss with Sample Loss Proportion at Default with Fitted Normal Distribution", xlab="Portfolio Loss", ylab="Train Count") + plot(lossDist_norm)
+hist(lossDist, breaks =  numBins, main = "Inverse Sampled Portfolio Loss given Sampled Loan Loss Proportion", xlab="Portfolio Loss", ylab="Simulation Count") + plot(lossDist_norm)
 
 lossDist_log = log(-lossDist)
 lossDist_log_norm = fitdist(lossDist_log, "norm")
 numBins = round((max(lossDist_log) - min(lossDist_log))/(2*IQR(lossDist_log)/(length(lossDist_log)^(1/3))))
-hist(lossDist_log, breaks =  numBins, main = "Histogram of Inverse Sampling Log Loan Loss with Sample Loss Proportion at Default", xlab="Portfolio Loss", ylab="Train Count") + plot(lossDist_log_norm)
+hist(lossDist_log, breaks =  numBins, main = main = "Inverse Sampled Portfolio Log Loss given Sampled Loan Loss Proportion", xlab="Portfolio Log Loss", ylab="Simulation Count") + plot(lossDist_log_norm)
 
 
 ###############
@@ -182,7 +187,7 @@ Avg_VaR_99 = -sum(lossDist[lossDist <= -VaR_99])/ length(lossDist[lossDist <= -V
 Avg_VaR_99
 #9178419284
 
-hist(lossDist, breaks =  numBins, main = "Histogram of Inverse Sampling of Loan Loss with Sample Loss Proportion at Default with Non Parametric VaR", xlab="Portfolio Loss", ylab="Train Count", cex.main=1) 
+hist(lossDist, breaks =  numBins, main = "Inverse Sampled Portfolio Log Loss & Non-parametric VaR given Sampled Loan Loss Proportion", xlab="Portfolio Loss", ylab="Simulation Count", cex.main=1) 
 abline(v = -VaR_95, col="blue", lwd = 3) 
 abline(v = -VaR_99, col="red", lwd = 3)
 abline(v = -Avg_VaR_95, col="blue", lty = 2, lwd = 3) 
@@ -207,12 +212,215 @@ Avg_VaR_99 = sum(exp(qnorm(x, mean = lossDist_log_norm$estimate[1], sd = lossDis
 Avg_VaR_99
 #107438865727
 
-denscomp(ft = lossDist_log_norm, legendtext = "Normal",  main = "Histogram of Inverse Sampling Log Loan Loss with Sample Loss Proportion at Default", xlab="Portfolio Log Loss", ylab="Train Count", xlim = c(10,28))
+denscomp(ft = lossDist_log_norm, legendtext = "Normal",  main = "Inverse Sampled Portfolio Log Loss & Parametric VaR given Sampled Loan Loss Proportion", xlab="Portfolio Log Loss", ylab="Simulation Count", xlim = c(10,28))
 abline(v = log(VaR_95), col="blue", lwd = 3) 
 abline(v = log(VaR_99), col="red", lwd = 3)
 abline(v = log(Avg_VaR_95), col="blue", lty = 2, lwd = 3) 
 abline(v = log(Avg_VaR_99), col="red", lty = 2, lwd = 3)
 legend(x = "bottomleft", legend = c("VaR 95% Level", "VaR 99% Level", "Avg VaR 95% Level", "Avg VaR 99% Level"), lty = c(1, 1, 2, 2), col = c("blue", "red", "blue", "red"), lwd = 3) 
 
+############################################################
+#Multi Period 
+############################################################
+
+#Data Import
+setwd("/Users/jackparkin/Desktop/MS&E 246/Project")
+raw_data <- read.csv("input_pre_processing_VAR.csv")
+periods <- 25
+
+raw_data <- 
+  raw_data %>% 
+  mutate(
+    term_years = TermInMonths %/% 12,
+    terminus = 
+      case_when(
+        !is.na(ChargeOffDate) ~ as.integer(substring(ChargeOffDate, 0, 4)), # Loan is charged off
+        ApprovalFiscalYear + term_years <= 2013 ~ as.integer(ApprovalFiscalYear + term_years),  # Loan is paid in full prior to end of dataset
+        ApprovalFiscalYear + term_years > 2013 ~ as.integer(2013),
+        TRUE ~ NA_integer_
+      ),
+    index = seq(1,length(raw_data[,1]))
+  ) 
 
 
+ raw_data_list <- list()
+for (i in 1:periods) { 
+  raw_data_list[[i]] = raw_data
+}
+
+for (i in 1:periods) {
+  if (periods == 5) {
+    active_years = seq(1990 + 5*(i - 1), 1990 + 5*i, 1)
+    raw_data_list[[i]] <- 
+      raw_data_list[[i]] %>% 
+      filter(
+        ApprovalFiscalYear %in% active_years | ApprovalFiscalYear < active_years[1],
+        terminus %in% active_years | terminus > active_years[6]
+      )
+  } else {
+    curr_year = 1990 + i - 1
+    raw_data_list[[i]] <- 
+      raw_data_list[[i]] %>% 
+      filter(
+        ApprovalFiscalYear <= curr_year,
+        curr_year <= terminus
+      )
+  }
+}
+
+#GDP Import
+GDP = read.csv("GDP.csv")
+#SP500 Import
+SP500 = getSymbols("^GSPC",from = "1990-01-01",to = "2014-12-31", periodicity = 'monthly', auto.assign = FALSE)
+#FedFunds Import
+FEDFUNDS = read.csv("FEDFUNDS.csv")
+#CPI Import (Consumer Price Index for All Urban Consumers: All Items in U.S. City Average)
+CPI = read.csv("CPIAUCSL.csv")
+#Unemployment
+UnemploymentUSbyState = read.csv('StateUR.csv', header = TRUE)
+
+GDP <- 
+  GDP %>%  
+  transmute(month.bin = DATE, GDP = GDP) %>%  
+  transmute(
+    GDP,
+    quarter.bin =
+      case_when(
+        as.numeric(substring(month.bin, 6, 7)) < 10 & as.numeric(substring(month.bin, 6, 7)) >= 7  ~ paste("Q3", substring(month.bin, 0, 4)),
+        as.numeric(substring(month.bin, 6, 7)) < 7 & as.numeric(substring(month.bin, 6, 7)) >= 4   ~ paste("Q2", substring(month.bin, 0, 4)),
+        as.numeric(substring(month.bin, 6, 7)) < 4                                                 ~ paste("Q1", substring(month.bin, 0, 4)),
+        TRUE                                                                                       ~ paste("Q4", substring(month.bin, 0, 4)),
+      )
+  )
+
+SP500 <- 
+  SP500 %>% 
+  as.data.frame() %>% 
+  transmute(month.bin = rownames(.), GSPC.price = GSPC.Adjusted)
+
+for (i in 1:periods) {
+  repeat_borr = duplicated(raw_data_list[[i]]$BorrName)
+  
+  raw_data_list[[i]] <- 
+    raw_data_list[[i]] %>%  
+    mutate(
+      quarter.bin =
+        case_when(
+          as.numeric(substring(ApprovalDate, 6, 7)) < 10 & as.numeric(substring(ApprovalDate, 6, 7)) >= 7  ~ paste("Q3", substring(ApprovalDate, 0, 4)),
+          as.numeric(substring(ApprovalDate, 6, 7)) < 7 & as.numeric(substring(ApprovalDate, 6, 7)) >= 4   ~ paste("Q2", substring(ApprovalDate, 0, 4)),
+          as.numeric(substring(ApprovalDate, 6, 7)) < 4                                                    ~ paste("Q1", substring(ApprovalDate, 0, 4)),
+          TRUE                                                                                             ~ paste("Q4", substring(ApprovalDate, 0, 4)),
+        )
+    ) %>%  
+    left_join(y = GDP, by = "quarter.bin") %>%  
+    subset(select = -quarter.bin) %>%     # Up to here, I've added GDP. Onto S&P 500
+    left_join(y = SP500, by = "month.bin") %>%  
+    left_join(y = FEDFUNDS, by = c("month.bin" = "DATE")) %>%  
+    left_join(y = CPI, by = c("month.bin" = "DATE")) %>% 
+    left_join(y = UnemploymentUSbyState, by = c("ProjectState" = "State", "month.bin" = "DATE")) %>%  
+    rename(URinBorrState = UR) %>%  
+    left_join(y = UnemploymentUSbyState, by = c("BorrState" = "State", "month.bin" = "DATE")) %>%  
+    rename(URinProjectState = UR) %>% 
+    mutate(
+      Default = 
+        case_when(
+          GrossChargeOffAmount == 0 ~ 0L,
+          TRUE ~ 1L
+        ),
+      LogGrossApproval = log(GrossApproval),
+      LogGDP = log(GDP),
+      LogSP500 = log(GSPC.price),
+      LogFedFunds = log(FEDFUNDS),
+      LogCPI = log(CPIAUCSL),
+      LogThirdPartyDollars = log(ThirdPartyDollars)
+    )    
+}
+temp = as.data.frame(raw_data_list[1])
+
+for (i in 1:periods) {
+  raw_data_list[[i]] <- 
+    raw_data_list[[i]][append(colnames(log_model_data), "index")]
+  
+  raw_data_list[[i]][continuous_cols][is.na(raw_data_list[[i]][continuous_cols])] = 0
+  other = c("BinaryIntergerTerm", "BinaryRepeatBorrower", "BinaryBankStEqualBorrowerSt", "BinaryProjectStEqualBorrowerSt")
+  raw_data_list[[i]][other][is.na(raw_data_list[[i]][other])] = 0
+}  
+
+
+#####################
+#Distribution of Loss
+
+nonParamerticVars = data.frame(matrix(nrow = 0, ncol = 4))
+colnames(nonParamerticVars) = c("95% VaR", "99% VaR", "95% Avg VaR", "99% Avg VaR")
+paramerticVars = data.frame(matrix(nrow = 0, ncol = 4))
+colnames(paramerticVars) = c("95% VaR", "99% VaR", "95% Avg VaR", "99% Avg VaR")
+
+S = 500
+sample_indexs = sample(as.data.frame(raw_data_list[1])$index,S)
+for (i in 1:(periods-1)) {
+  sample = as.data.frame(raw_data_list[i])
+  sample = sample[(sample$index %in% sample_indexs),]
+  sample[continuous_cols] = (sample[continuous_cols] - continuous_means)/continuous_sd
+  sample_GrossApproval = sample$GrossApproval
+  sample = subset(sample, select = -c(GrossApproval,GrossChargeOffAmount, index))
+  sample_test = model.matrix(Default ~., sample)[, -1]
+  sample_prediction = predict(model_L1, newx = sample_test, s = best_L1_lambda, type = "response")
+
+  N = 10000
+  lossDist = vector()
+  for (j in 1:N){
+    U = runif(1, min = min(sample_prediction), max = max(sample_prediction))
+    sample = sample_prediction[sample_prediction>U]
+    lossPropDist_sample = rbeta(length(sample), lossPropDist_beta$estimate[1], lossPropDist_beta$estimate[2])
+    lossDist = append(lossDist, -sum(lossPropDist_sample*sample_GrossApproval[sample_prediction>U]))
+  }
+  lossDists = append(lossDists, c(lossDist))
+  
+  #Non Parametric VaR based on log model
+  VaR_95 = -quantile(lossDist, prob = c(0.05))
+  VaR_99 = -quantile(lossDist, prob = c(0.01))
+  Avg_VaR_95 = -sum(lossDist[lossDist < -VaR_95])/ length(lossDist[lossDist < -VaR_95])
+  Avg_VaR_99 = -sum(lossDist[lossDist <= -VaR_99])/ length(lossDist[lossDist <= -VaR_99])
+  nonParamerticVars[paste("Period", i),] = c(VaR_95, VaR_99, Avg_VaR_95, Avg_VaR_99)
+  
+  #Parametric LogNormal Losses VaR based on log model
+  lossDist_log = log(-lossDist)
+  lossDist_log_norm = fitdist(lossDist_log, "norm")
+  VaR_95 = exp(qnorm(0.95, mean = lossDist_log_norm$estimate[1], sd = lossDist_log_norm$estimate[2], lower.tail = TRUE, log.p = FALSE))
+  VaR_99 = exp(qnorm(0.99, mean = lossDist_log_norm$estimate[1], sd = lossDist_log_norm$estimate[2], lower.tail = TRUE, log.p = FALSE))
+  x = seq(0.95, 0.999, 0.001)
+  Avg_VaR_95 = sum(exp(qnorm(x, mean = lossDist_log_norm$estimate[1], sd = lossDist_log_norm$estimate[2], lower.tail = TRUE, log.p = FALSE)))/length(x)
+  x = seq(0.99, 0.999, 0.001)
+  Avg_VaR_99 = sum(exp(qnorm(x, mean = lossDist_log_norm$estimate[1], sd = lossDist_log_norm$estimate[2], lower.tail = TRUE, log.p = FALSE)))/length(x)
+  paramerticVars[paste("Period", i),] = c(VaR_95, VaR_99, Avg_VaR_95, Avg_VaR_99)
+  
+}
+
+#Non Parametric Plot
+numBins = round((max(lossDist) - min(lossDist))/(2*IQR(lossDist)/(length(lossDist)^(1/3))))
+hist(lossDist, breaks =  numBins, main = paste("Inverse Sampled Portfolio Loss & Non Parametric VaR given Sampled Loan Loss Proportion for Period", i), xlab="Portfolio Loss", ylab="Simulation Count", cex.main=0.7, xlim = c(-max(nonParamerticVars[length(nonParamerticVars$`95% VaR`),][1], nonParamerticVars[length(nonParamerticVars$`95% VaR`),][2], nonParamerticVars[length(nonParamerticVars$`95% VaR`),][3], nonParamerticVars[length(nonParamerticVars$`95% VaR`),][4]),0)) 
+abline(v = -nonParamerticVars[length(nonParamerticVars$`95% VaR`),][1], col="blue", lwd = 3) 
+abline(v = -nonParamerticVars[length(nonParamerticVars$`95% VaR`),][2], col="red", lwd = 3)
+abline(v = -nonParamerticVars[length(nonParamerticVars$`95% VaR`),][3], col="blue", lty = 2, lwd = 3) 
+abline(v = -nonParamerticVars[length(nonParamerticVars$`95% VaR`),][4], col="red", lty = 2, lwd = 3)
+legend(x = "top",legend = c("VaR 95% Level", "VaR 99% Level", "Avg VaR 95% Level", "Avg VaR 99% Level"), lty = c(1, 1, 2, 2), col = c("blue", "red", "blue", "red"), lwd = 3)
+
+#Parametric Plots
+denscomp(ft = lossDist_log_norm, legendtext = "Normal",  main = paste("Inverse Sampled Portfolio Log Loss & Parametric VaR given Sampled Loan Loss Proportion for Period", i), xlab="Portfolio Log Loss", ylab="Simulation Count", cex.main=0.7, xlim = c(0,max(log(VaR_95), log(VaR_99), log(Avg_VaR_95), log(Avg_VaR_99))))
+abline(v = log(VaR_95), col="blue", lwd = 3) 
+abline(v = log(VaR_99), col="red", lwd = 3)
+abline(v = log(Avg_VaR_95), col="blue", lty = 2, lwd = 3) 
+abline(v = log(Avg_VaR_99), col="red", lty = 2, lwd = 3)
+legend(x = "bottomleft", legend = c("VaR 95% Level", "VaR 99% Level", "Avg VaR 95% Level", "Avg VaR 99% Level"), lty = c(1, 1, 2, 2), col = c("blue", "red", "blue", "red"), lwd = 3)
+
+qqcomp(lossDist_log_norm, legendtext = "Normal",  main = paste("Log Loss Normal Distribution QQ Plot for Period", i), xlab="Portfolio Log Loss", ylab="Simulation Count")
+
+nonParamerticVars$Period = seq(1, length(nonParamerticVars$`95% VaR`))
+nonParamerticVars <- melt(nonParamerticVars ,  id.vars = 'Period', variable.name = 'VaRs')
+ggplot(nonParamerticVars, aes(Period, value)) +
+  geom_line(aes(colour = VaRs)) + labs(title = "Non Parametric VaRs", y = "Portfolio VaRs")
+
+paramerticVars$Period = seq(1, length(paramerticVars$`95% VaR`))
+paramerticVars <- melt(paramerticVars ,  id.vars = 'Period', variable.name = 'VaRs')
+ggplot(paramerticVars, aes(Period, value)) +
+  geom_line(aes(colour = VaRs)) + labs(title = "Parametric VaRs", y = "Portfolio VaRs")
