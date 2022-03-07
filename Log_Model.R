@@ -76,11 +76,10 @@ legend(x = "bottomright", legend = c("Training ROC", "Testing ROC"), lty = c(1, 
 x_train = model.matrix(Default ~., train_data)[, -1]
 y_train = train_data$Default
 
-model_L1 = glmnet(x_train, y_train, alpha = 1, nlambda = 10, family="binomial")
-model_L2 = glmnet(x_train, y_train, alpha = 0, nlambda = 10, family="binomial")
+model_L1 = glmnet(x_train, y_train, alpha = 1, nlambda = 50, family="binomial")
+model_L2 = glmnet(x_train, y_train, alpha = 0, nlambda = 50, family="binomial")
 
 x_validation = model.matrix(Default ~., validation_data)[, -1]
-x_validation = x_validation[,order(colnames(x_validation))]
 
 prediction_L1_train = predict(model_L1, newx = x_train, type = "response")
 prediction_L2_train = predict(model_L2, newx = x_train, type = "response")
@@ -92,12 +91,13 @@ AUC_L1_train = vector()
 AUC_L2_train = vector()
 AUC_L1_validation = vector()
 AUC_L2_validation = vector()
-for(i in 1:10){
+for(i in 1:50){
   AUC_L1_train = append(AUC_L1_train, unlist(slot(performance(prediction(prediction_L1_train[,i], train_data$Default), 'auc'), 'y.values')))
   AUC_L2_train = append(AUC_L2_train, unlist(slot(performance(prediction(prediction_L2_train[,i], train_data$Default), 'auc'), 'y.values')))
   AUC_L1_validation = append(AUC_L1_validation, unlist(slot(performance(prediction(prediction_L1_validation[,i], validation_data$Default), 'auc'), 'y.values')))
   AUC_L2_validation = append(AUC_L2_validation,  unlist(slot(performance(prediction(prediction_L2_validation[,i], validation_data$Default), 'auc'), 'y.values')))
 }
+
 
 #Best L1 Hyperparameter
 best_L1_lambda_index = which.max(AUC_L1_validation)
@@ -105,7 +105,9 @@ best_L1_lambda = model_L1$lambda[best_L1_lambda_index]
 best_L1_AUC = max(AUC_L1_validation)
 L1_summary = as.data.frame(model_L1$lambda)
 L1_summary$AUC = AUC_L1_validation
-#0.6679918
+max(L1_summary$AUC)
+# 0.6585998
+
 
 #Best L2 Hyperparameter
 best_L2_lambda_index = which.max(AUC_L2_validation)
@@ -113,10 +115,12 @@ best_L2_lambda = model_L2$lambda[best_L2_lambda_index]
 best_L2_AUC = max(AUC_L2_validation)
 L2_summary = as.data.frame(model_L2$lambda)
 L2_summary$AUC = AUC_L2_validation
-#0.6633677
+max(L2_summary$AUC)
+#0.6582028
 
 #Testing: best L1  model
 x_test = model.matrix(Default ~., test_data)[, -1]
+test_data = test_data[!(rownames(test_data) %in% setdiff(rownames(test_data), rownames(x_test))),]
 prediction_test = predict(model_L1, newx = x_test, s = best_L1_lambda, type = "response")
 prediction_test = prediction(prediction_test, test_data$Default)
 auc = unlist(slot(performance(prediction_test, 'auc'), 'y.values'))
@@ -128,10 +132,11 @@ L1_coef = as.matrix(coef(model_L1, s=model_L1$lambda[best_L1_lambda_index]))
 rownames(L1_coef) = rownames(coef(model_L1))
 qplot(y= L1_coef[,1]) + labs(title = "Best L1 Logistic Model Coeffcients", x= "Covariates", y= "Coeffcient Value")
 L1_coef = as.data.frame(L1_coef)
-
 #Plotting ROCs
 roc_train = performance(prediction(prediction_L1_train[,best_L1_lambda_index], train_data$Default),"tpr","fpr")
+
 roc_validation = performance(prediction(prediction_L1_validation[,best_L1_lambda_index], validation_data$Default),"tpr","fpr")
+
 roc_test = performance(prediction_test,"tpr","fpr")
 plot(roc_train, col = 'red', main = 'Best L1 Logistic Model Training ROC vs. Validation ROC vs. Testing ROC')
 plot(roc_validation, add = TRUE, col = 'green')
@@ -158,7 +163,7 @@ lossDist = vector()
 for (i in 1:N){
   U = runif(1, min = min(prediction_train), max = max(prediction_train))
   sample = prediction_train[prediction_train>U]
-  lossPropDist_sample = rbeta(length(sample), lossPropDist_beta$estimate[1], lossPropDist_beta$estimate[2])
+  slossPropDist_sample = rbeta(length(sample), lossPropDist_beta$estimate[1], lossPropDist_beta$estimate[2])
   lossDist = append(lossDist, -sum(lossPropDist_sample*raw_train_data$GrossApproval[prediction_train>U]))
 }
 
@@ -169,7 +174,8 @@ hist(lossDist, breaks =  numBins, main = "Inverse Sampled Portfolio Loss given S
 lossDist_log = log(-lossDist)
 lossDist_log_norm = fitdist(lossDist_log, "norm")
 numBins = round((max(lossDist_log) - min(lossDist_log))/(2*IQR(lossDist_log)/(length(lossDist_log)^(1/3))))
-hist(lossDist_log, breaks =  numBins, main = main = "Inverse Sampled Portfolio Log Loss given Sampled Loan Loss Proportion", xlab="Portfolio Log Loss", ylab="Simulation Count") + plot(lossDist_log_norm)
+
+hist(lossDist_log, breaks =  numBins, main = "Inverse Sampled Portfolio Log Loss given Sampled Loan Loss Proportion", xlab="Portfolio Log Loss", ylab="Simulation Count") + plot(lossDist_log_norm)
 
 
 ###############
@@ -335,7 +341,6 @@ for (i in 1:periods) {
       LogThirdPartyDollars = log(ThirdPartyDollars)
     )    
 }
-temp = as.data.frame(raw_data_list[1])
 
 for (i in 1:periods) {
   raw_data_list[[i]] <- 
