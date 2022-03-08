@@ -48,30 +48,35 @@ auc_compute(nn_log,validation_data)
 #Best Architecture
 
 #Validation: Hidden Variables  with Default 2 hidden layers & best Act Fn
-arch_list = list(c(2), c(3), c(4), c(5), c(8), c(10), c(3,2))
+arch_list = list(c(2), c(3), c(4), c(6), c(2,1), c(4,2))
 nn1 = neuralnet(Default ~., data = train_data_2, hidden= arch_list[[1]], err.fct = "sse", linear.output = FALSE)
 nn2 = neuralnet(Default ~., data = train_data_2, hidden= arch_list[[2]], err.fct = "sse", linear.output = FALSE)
 nn3 = neuralnet(Default ~., data = train_data_2, hidden= arch_list[[3]], err.fct = "sse", linear.output = FALSE)
 nn4 = neuralnet(Default ~., data = train_data_2, hidden= arch_list[[4]], err.fct = "sse", linear.output = FALSE)
-nn5 = neuralnet(Default ~., data = train_data_2, hidden= arch_list[[5]], rep=2, err.fct = "sse", linear.output = FALSE)
-nn6 = neuralnet(Default ~., data = train_data_2, hidden= arch_list[[6]],rep=3, err.fct = "sse", linear.output = FALSE)
-nn7 = neuralnet(Default ~., data = train_data_2, hidden= arch_list[[7]],rep=3, err.fct = "sse", linear.output = FALSE)
+nn5 = neuralnet(Default ~., data = train_data_2, hidden= arch_list[[5]], err.fct = "sse", linear.output = FALSE)
+nn6 = neuralnet(Default ~., data = train_data_2, hidden= arch_list[[6]], err.fct = "sse", linear.output = FALSE)
 
 auc_val_arch =c(auc_compute(nn1,validation_data),
                 auc_compute(nn2,validation_data),
                 auc_compute(nn3,validation_data),
                 auc_compute(nn4,validation_data),
                 auc_compute(nn5,validation_data),
-                auc_compute(nn6,validation_data),
                 auc_compute(nn6,validation_data))
+c(auc_compute(nn1,train_data),
+  auc_compute(nn2,train_data),
+  auc_compute(nn3,train_data),
+  auc_compute(nn4,train_data),
+  auc_compute(nn5,train_data),
+  auc_compute(nn6,train_data))
 
-c(auc_compute(nn1,test_data),
-  auc_compute(nn2,test_data),
-  auc_compute(nn3,test_data),
-  auc_compute(nn4,test_data),
-  auc_compute(nn5,test_data),
-  auc_compute(nn6,test_data))
 auc_val_arch
+
+#c(auc_compute(nn1,test_data),
+#  auc_compute(nn2,test_data),
+#  auc_compute(nn3,test_data),
+#  auc_compute(nn4,test_data),
+#  auc_compute(nn5,test_data),
+#  auc_compute(nn6,test_data))
 best_arch_index = which.max(auc_val_arch)
 best_auc.val = max(auc_val_arch)
 best_arch = arch_list[[best_arch_index]]
@@ -115,13 +120,20 @@ grid.table(d)
 
 ##########################
 #Final Model
-best_nn = neuralnet(Default ~., data = train_data, hidden= , rep = 2, act.fct = "log",linear.output = FALSE)
+#install.packages("ROSE")
+library("ROSE")
+train_data.over <- ovun.sample(Default~., data = train_data, method = "over", N = 70934)$data
+best_nn = neuralnet(Default ~., data = train_data, hidden = best_arch, threshold = .01, act.fct = "logistic",linear.output = FALSE)
+best_nn.over = neuralnet(Default ~., data = train_data.over, hidden = best_arch, rep = .01, act.fct = "logistic",linear.output = FALSE)
+
+best_auc.train = auc_compute(best_nn,train_data)
 best_auc.val = auc_compute(best_nn,validation_data)
 best_auc.test = auc_compute(best_nn,test_data)
 
+best_auc.train
 best_auc.val
 best_auc.test
-save(best_nn, file = "trained_nn.RData")
+#save(best_nn, file = "trained_nn.RData")
 
 ##############################
 #EVALUATION
@@ -134,13 +146,13 @@ load("trained_L1_log_model.RData")
 auc_compute(best_nn,test_data)
 
 ##ROC Curve NN
-nn_pred.train = compute(best_nn,train_data)
+nn_pred.train = neuralnet::compute(best_nn,train_data)
 nn_pred.train = as.vector(nn_pred.train$net.result)
-nn_pred.train = prediction(nn_pred.train, train_data$Default)
+nn_pred.train = ROCR::prediction(nn_pred.train, train_data$Default)
 
-nn_pred.test = compute(best_nn,test_data)
+nn_pred.test = neuralnet::compute(best_nn,test_data)
 nn_pred.test = as.vector(nn_pred.test$net.result)
-nn_pred.test = prediction(nn_pred.test, test_data$Default)
+nn_pred.test = ROCR::prediction(nn_pred.test, test_data$Default)
 
 roc_train.nn = performance(nn_pred.train,"tpr","fpr")
 roc_test.nn = performance(nn_pred.test,"tpr","fpr")
