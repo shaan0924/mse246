@@ -67,12 +67,13 @@ raw_data <- raw_data %>%
       )
   ) 
 #Spilting data by year
-modified_data = as.data.frame(matrix(ncol = ncol(raw_data)+1, nrow = 0))
+raw_data$Len = raw_data$terminus - raw_data$ApprovalFiscalYear
+modified_data = raw_data
+modified_data$Date = modified_data$ApprovalDate
 
-for (i in 1:length(raw_data[,1])){
-  len = raw_data[i,]$terminus - raw_data[i,]$ApprovalFiscalYear  + 1
-  temp = raw_data[rep(i, len), ]
-  temp$Date = seq(raw_data[i,]$ApprovalDate, by = "years", length.out = len)
+for (i in 1:max(raw_data$Len)){
+  temp = raw_data[raw_data$Len >= i,]
+  temp$Date = temp$ApprovalDate %m+% years(i)
   modified_data = rbind(modified_data, temp)
 }
 
@@ -129,7 +130,7 @@ modified_data$LogSP500 = log(modified_data$GSPC.price)
 modified_data$LogCPI = log(modified_data$CPI)
 #Creating model data
 colnames(modified_data)
-model_data = modified_data[c("LogSize", "LogGDP", "LogSP500", "LogCPI", "FedFunds", "URinProjectState", "URinBorrState", "TermInMonths", "Age", "BinaryIntergerTerm", "BinaryRepeatBorrower", "BinaryBankStEqualBorrowerSt", "BinaryProjectStEqualBorrowerSt", "BusinessType", "NaicsCode", "Date", "ApprovalDate", "Default", "Size", "GrossChargeOffAmount", "Index")]
+model_data = modified_data[c("LogSize", "LogGDP", "LogSP500", "LogCPI", "FedFunds", "URinProjectState", "URinBorrState", "TermInMonths", "Age", "BinaryIntergerTerm", "BinaryRepeatBorrower", "BinaryBankStEqualBorrowerSt", "BinaryProjectStEqualBorrowerSt", "BusinessType", "NaicsCode","DeliveryMethod", "Date", "ApprovalDate", "Default", "Size", "GrossChargeOffAmount", "Index")]
 
 
 #Continuous missing values
@@ -141,9 +142,9 @@ scale_cols =  c("LogSize", "LogGDP", "LogSP500", "LogCPI", "FedFunds", "URinProj
 model_data[scale_cols] = as.data.frame(scale(model_data[scale_cols]))
 
 #Discrete missing values
-disc_cols = c("BusinessType", "NaicsCode")
+disc_cols = c("BusinessType", "NaicsCode", "DeliveryMethod")
 temp = model_data[disc_cols]
-temp[is.na(temp)] = "Blank"
+temp[is.na(temp)] = "NA"
 model_data[disc_cols] = temp
 
 #Adding categorical columns
@@ -170,6 +171,7 @@ test_data = subset(raw_test_data, select = -c(Date, Size, GrossChargeOffAmount))
 sum(train_data$Default)
 sum(validation_data$Default)
 sum(test_data$Default)
+
 ######################
 #Basic Logistic Model
 
@@ -190,6 +192,7 @@ log_model_coefficients = as.data.frame(log_model$coefficients)
 
 #Test ROC AUC
 log_model_test_prediction = predict(log_model, newdata = test_data, type="response")
+log_model_test_prediction[is.na(log_model_test_prediction)] = 0
 log_model_test_prediction = ROCR::prediction(log_model_test_prediction, test_data$Default)
 auc = unlist(slot(performance(log_model_test_prediction, 'auc'), 'y.values'))
 auc
