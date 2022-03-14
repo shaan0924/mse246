@@ -356,7 +356,6 @@ prediction = neuralnet::compute(loss_at_default_nn_model,default_test_data)
 prediction = as.vector(prediction$net.result)
 sqrt(mean((default_test_data$LossProp - prediction)^2))
 #0.2679258
-
 ################################
 #Loss at Default Beta Model
 train_lossProp_Dist = default_train_data$LossProp[default_train_data$LossProp <= 1]
@@ -511,14 +510,14 @@ abline(v = -Avg_VaR_99, col="red", lty = 2, lwd = 3)
 legend(x = "top",legend = c("VaR 95% Level", "VaR 99% Level", "Avg VaR 95% Level", "Avg VaR 99% Level"), lty = c(1, 1, 2, 2), col = c("blue", "red", "blue", "red"), lwd = 3)
 
 #Parametric VaR
-
 beta_lossDist_normal_fit = fitdistrplus::fitdist(beta_lossDist, "norm")
 hist(beta_lossDist, main = NULL, xlab="Portfolio Loss")
 plot(beta_lossDist_normal_fit)
 
 beta_lossDist_log = log(-beta_lossDist)
 beta_lossDist_log_normal_fit = fitdistrplus::fitdist(beta_lossDist_log, "norm")
-hist(beta_lossDist_log, main = NULL, xlab="Portfolio Loss") + plot(beta_lossDist_log_normal_fit)
+hist(beta_lossDist_log, main = NULL, xlab="Portfolio Loss")
+plot(beta_lossDist_log_normal_fit)
 qqcomp(beta_lossDist_log_normal_fit, legendtext = "Normal",  main = NULL, xlab="Portfolio Log Loss")
 
 VaR_95 = exp(qnorm(0.95, mean = beta_lossDist_log_normal_fit$estimate[1], sd = beta_lossDist_log_normal_fit$estimate[2], lower.tail = TRUE, log.p = FALSE))
@@ -536,12 +535,14 @@ abline(v = log(Avg_VaR_95), col="blue", lty = 2, lwd = 3)
 abline(v = log(Avg_VaR_99), col="red", lty = 2, lwd = 3)
 legend(x = "bottomleft", legend = c("VaR 95% Level", "VaR 99% Level", "Avg VaR 95% Level", "Avg VaR 99% Level"), lty = c(1, 1, 2, 2), col = c("blue", "red", "blue", "red"), lwd = 3)
 
-NN_lossDist_normal_fit = fitdistcens(NN_lossDist, "norm")
-hist(NN_lossDist, main = NULL, xlab="Portfolio Loss", ylab="Count") + plot(NN_lossDist_normal_fit)
+NN_lossDist_normal_fit = fitdistrplus::fitdist(NN_lossDist, "norm")
+hist(NN_lossDist, main = NULL, xlab="Portfolio Loss", ylab="Count")
+plot(NN_lossDist_normal_fit)
 
 NN_lossDist_log = log(-NN_lossDist)
-NN_lossDist_log_normal_fit = fitdist(NN_lossDist_log, "norm")
-hist(NN_lossDist_log, main = NULL, xlab="Portfolio Loss") + plot(NN_lossDist_log_normal_fit)
+NN_lossDist_log_normal_fit = fitdistrplus::fitdist(NN_lossDist_log, "norm")
+hist(NN_lossDist_log, main = NULL, xlab="Portfolio Loss")
+plot(NN_lossDist_log_normal_fit)
 qqcomp(NN_lossDist_log_normal_fit, legendtext = "Normal",  main = NULL, xlab="Portfolio Log Loss")
 
 VaR_95 = exp(qnorm(0.95, mean = NN_lossDist_log_normal_fit$estimate[1], sd = NN_lossDist_log_normal_fit$estimate[2], lower.tail = TRUE, log.p = FALSE))
@@ -592,7 +593,7 @@ for (j in 1:N){
   sample = prediction_test[prediction_test>U]
   sample_sizes = portfolio$Size[prediction_test>U]
   
-  beta_lossProp_sample = rbeta(length(sample), lossPropDist_beta$estimate[1], lossPropDist_beta$estimate[2])
+  beta_lossProp_sample = rbeta(length(sample), train_lossPropDist_beta$estimate[1], train_lossPropDist_beta$estimate[2])
   beta_lossDist = append(beta_lossDist, -sum(beta_lossProp_sample*sample_sizes))
   
   NN_lossProp_sample = neuralnet::compute(loss_at_default_nn_model,test_data[prediction_test>U,])
@@ -633,12 +634,14 @@ legend(x = "top",legend = c("VaR 95% Level", "VaR 99% Level", "Avg VaR 95% Level
 
 #Parametric VaR
 
-beta_lossDist_normal_fit = fitdistcens(beta_lossDist, "norm")
-hist(beta_lossDist, main = NULL, xlab="Portfolio Loss") + plot(beta_lossDist_normal_fit)
+beta_lossDist_normal_fit = fitdistrplus::fitdist(beta_lossDist, "norm")
+hist(beta_lossDist, main = NULL, xlab="Portfolio Loss") 
+plot(beta_lossDist_normal_fit)
 
 beta_lossDist_log = log(-beta_lossDist)
-beta_lossDist_log_normal_fit = fitdist(beta_lossDist_log, "norm")
-hist(beta_lossDist_log, main = NULL, xlab="Portfolio Loss") + plot(beta_lossDist_log_normal_fit)
+beta_lossDist_log_normal_fit = fitdistrplus::fitdist(beta_lossDist_log, "norm")
+hist(beta_lossDist_log, main = NULL, xlab="Portfolio Loss")
+plot(beta_lossDist_log_normal_fit)
 qqcomp(beta_lossDist_log_normal_fit, legendtext = "Normal",  main = NULL, xlab="Portfolio Log Loss")
 
 VaR_95 = exp(qnorm(0.95, mean = beta_lossDist_log_normal_fit$estimate[1], sd = beta_lossDist_log_normal_fit$estimate[2], lower.tail = TRUE, log.p = FALSE))
@@ -656,12 +659,13 @@ abline(v = log(Avg_VaR_95), col="blue", lty = 2, lwd = 3)
 abline(v = log(Avg_VaR_99), col="red", lty = 2, lwd = 3)
 legend(x = "bottomleft", legend = c("VaR 95% Level", "VaR 99% Level", "Avg VaR 95% Level", "Avg VaR 99% Level"), lty = c(1, 1, 2, 2), col = c("blue", "red", "blue", "red"), lwd = 3)
 
-NN_lossDist_normal_fit = fitdistcens(NN_lossDist, "norm")
+NN_lossDist_normal_fit = fitdistrplus::fitdist(NN_lossDist, "norm")
 hist(NN_lossDist, main = NULL, xlab="Portfolio Loss", ylab="Count") + plot(NN_lossDist_normal_fit)
 
 NN_lossDist_log = log(-NN_lossDist)
-NN_lossDist_log_normal_fit = fitdist(NN_lossDist_log, "norm")
-hist(NN_lossDist_log, main = NULL, xlab="Portfolio Loss") + plot(NN_lossDist_log_normal_fit)
+NN_lossDist_log_normal_fit = fitdistrplus::fitdist(NN_lossDist_log, "norm")
+hist(NN_lossDist_log, main = NULL, xlab="Portfolio Loss")
+plot(NN_lossDist_log_normal_fit)
 qqcomp(NN_lossDist_log_normal_fit, legendtext = "Normal",  main = NULL, xlab="Portfolio Log Loss")
 
 VaR_95 = exp(qnorm(0.95, mean = NN_lossDist_log_normal_fit$estimate[1], sd = NN_lossDist_log_normal_fit$estimate[2], lower.tail = TRUE, log.p = FALSE))
@@ -678,4 +682,24 @@ abline(v = log(VaR_99), col="red", lwd = 3)
 abline(v = log(Avg_VaR_95), col="blue", lty = 2, lwd = 3) 
 abline(v = log(Avg_VaR_99), col="red", lty = 2, lwd = 3)
 legend(x = "bottomleft", legend = c("VaR 95% Level", "VaR 99% Level", "Avg VaR 95% Level", "Avg VaR 99% Level"), lty = c(1, 1, 2, 2), col = c("blue", "red", "blue", "red"), lwd = 3)
-        
+
+#################
+#Tranche:Risk Management
+
+#Inverse Sampling
+N = 10000
+beta_lossDist = vector()
+NN_lossDist = vector()
+for (j in 1:N){
+  U = runif(1, min = min(prediction_test), max = max(prediction_test))
+  sample = prediction_test[prediction_test>U]
+  sample_sizes = portfolio$Size[prediction_test>U]
+  
+  beta_lossProp_sample = rbeta(length(sample), train_lossPropDist_beta$estimate[1], train_lossPropDist_beta$estimate[2])
+  beta_lossDist = append(beta_lossDist, -sum(beta_lossProp_sample*sample_sizes))
+  
+  NN_lossProp_sample = neuralnet::compute(loss_at_default_nn_model,test_data[prediction_test>U,])
+  NN_lossProp_sample = as.vector(NN_lossProp_sample$net.result)
+  NN_lossDist = append(NN_lossDist, -sum(NN_lossProp_sample*sample_sizes))
+}
+  
