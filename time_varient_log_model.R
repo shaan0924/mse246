@@ -9,9 +9,10 @@ library(fastDummies)
 library(ROCR)
 library(glmnet)
 library(fitdistrplus)
+library(stats)
 library("ROSE")
 
-setwd("/Users/jackparkin/Desktop/MS&E 246/Project")
+#setwd("/Users/jackparkin/Desktop/MS&E 246/Project")
 setwd("/Users/sihguat/Desktop/MSE_246/mse246")
 
 ###################
@@ -250,7 +251,7 @@ best_L2_lambda = model_L2$lambda[best_L2_lambda_index]
 best_L2_AUC = max(AUC_L2_validation)
 L2_summary = as.data.frame(model_L2$lambda)
 L2_summary$AUC = AUC_L2_validation[1:length(L2_summary[,1])]
-max(L2_summary$AUC)
+max(L2_summary$AUC, na.rm=TRUE)
 #0.6892060
 
 #Testing: best L1  model
@@ -314,7 +315,7 @@ sqrt(mean((default_test_data$LossProp - prediction)^2))
 
 #Basic training
 loss_at_default_nn_model = neuralnet(LossProp ~., data = default_train_data, hidden= c(length(default_train_data)/4), act.fct = "logistic", linear.output = FALSE)
-plot(loss_at_default_nn_model)
+#plot(loss_at_default_nn_model)
 prediction = neuralnet::compute(loss_at_default_nn_model,default_validation_data)
 prediction = as.vector(prediction$net.result)
 sqrt(mean((default_validation_data$LossProp - prediction)^2))
@@ -362,7 +363,8 @@ train_lossProp_Dist = default_train_data$LossProp[default_train_data$LossProp <=
 train_lossPropDist_beta = fitdist(train_lossProp_Dist, "beta")
 
 numBins = round((max(train_lossProp_Dist) - min(train_lossProp_Dist))/(2*IQR(train_lossProp_Dist)/(length(train_lossProp_Dist)^(1/3))))
-hist(train_lossProp_Dist, breaks =  numBins, main = "Histogram of Loan Loss Proportion at Default", xlab="Proportion of Loan Loss at Default", ylab="Train Count") + plot(lossPropDist_beta)
+hist(train_lossProp_Dist, breaks =  numBins, main = "Histogram of Loan Loss Proportion at Default", xlab="Proportion of Loan Loss at Default", ylab="Train Count")
+plot(train_lossPropDist_beta)
 
 
 ################################
@@ -403,7 +405,7 @@ plot(acf(SP500_Log_returns$Log_returns), main = NULL)
 model_specifies = ugarchspec(mean.model = list(armaOrder = c(2,2), include.mean = FALSE), variance.model = list(model="sGARCH", garchOrder = c(1,1)), distribution.model = "std")
 SP500_ARMA_2_1_GARCH_1_1 = ugarchfit(data = SP500_Log_returns$Log_returns, spec = model_specifies, out.sample = 0)
 
-projection = ugarchboot(SP500_ARMA_1_1_GARCH_1_1, n.ahead = 60, method =  c("Partial", "Full")[1])
+projection = ugarchboot(SP500_ARMA_2_1_GARCH_1_1, n.ahead = 60, method =  c("Partial", "Full")[1])
 as.data.frame(projection, type = "summary")
 as.data.frame(projection, type = "q", qtile = c(0.05, 0.95))
 as.data.frame(projection, type = "q", qtile = c(0.01, 0.99))
@@ -437,10 +439,9 @@ for (state in unique(UnemploymentUSbyState$State)){
   projections = rbind(projections, c("UR", "1yr", state, ((growth_rate + 1)^1 * UnemploymentUSbyState$UR[UnemploymentUSbyState$DATE == Last_Date & UnemploymentUSbyState$State == state])))
   projections = rbind(projections, c("UR", "5yr", state, ((growth_rate + 1)^5 * UnemploymentUSbyState$UR[UnemploymentUSbyState$DATE == Last_Date& UnemploymentUSbyState$State == state])))
 }
-
+colnames(projections) = c("Metrics", "Period", "State", "Projection")
 ###############
 #1yr Period VaR
-
 #Adding Projections
 portfolio$LogGDP = (log(as.numeric(projections$Projection[projections$Metrics == "GDP" & projections$Period == "1yr"])) - mean(log(modified_data$GDP)))/ sd(log(modified_data$GDP))
 portfolio$LogSP500 = (log(as.numeric(projections$Projection[projections$Metrics == "SP500" & projections$Period == "1yr"])) - mean(log(modified_data$GSPC.price)))/ sd(log(modified_data$GSPC.price))
@@ -471,7 +472,7 @@ for (j in 1:N){
   sample = prediction_test[prediction_test>U]
   sample_sizes = portfolio$Size[prediction_test>U]
   
-  beta_lossProp_sample = rbeta(length(sample), lossPropDist_beta$estimate[1], lossPropDist_beta$estimate[2])
+  beta_lossProp_sample = rbeta(length(sample), train_lossPropDist_beta$estimate[1], train_lossPropDist_beta$estimate[2])
   beta_lossDist = append(beta_lossDist, -sum(beta_lossProp_sample*sample_sizes))
   
   NN_lossProp_sample = neuralnet::compute(loss_at_default_nn_model,test_data[prediction_test>U,])
@@ -509,14 +510,14 @@ abline(v = -Avg_VaR_95, col="blue", lty = 2, lwd = 3)
 abline(v = -Avg_VaR_99, col="red", lty = 2, lwd = 3)
 legend(x = "top",legend = c("VaR 95% Level", "VaR 99% Level", "Avg VaR 95% Level", "Avg VaR 99% Level"), lty = c(1, 1, 2, 2), col = c("blue", "red", "blue", "red"), lwd = 3)
 
-
 #Parametric VaR
 
-beta_lossDist_normal_fit = fitdistcens(beta_lossDist, "norm")
-hist(beta_lossDist, main = NULL, xlab="Portfolio Loss") + plot(beta_lossDist_normal_fit)
+beta_lossDist_normal_fit = fitdistrplus::fitdist(beta_lossDist, "norm")
+hist(beta_lossDist, main = NULL, xlab="Portfolio Loss")
+plot(beta_lossDist_normal_fit)
 
 beta_lossDist_log = log(-beta_lossDist)
-beta_lossDist_log_normal_fit = fitdist(beta_lossDist_log, "norm")
+beta_lossDist_log_normal_fit = fitdistrplus::fitdist(beta_lossDist_log, "norm")
 hist(beta_lossDist_log, main = NULL, xlab="Portfolio Loss") + plot(beta_lossDist_log_normal_fit)
 qqcomp(beta_lossDist_log_normal_fit, legendtext = "Normal",  main = NULL, xlab="Portfolio Log Loss")
 
