@@ -560,7 +560,43 @@ abline(v = log(Avg_VaR_95), col="blue", lty = 2, lwd = 3)
 abline(v = log(Avg_VaR_99), col="red", lty = 2, lwd = 3)
 legend(x = "bottomleft", legend = c("VaR 95% Level", "VaR 99% Level", "Avg VaR 95% Level", "Avg VaR 99% Level"), lty = c(1, 1, 2, 2), col = c("blue", "red", "blue", "red"), lwd = 3)
 
+#################
+#Tranche:Risk Management (1yr)
 
+#Fit Normal to Junior
+pool.size = sum(portfolio$Size)
+equity.size = -pool.size*.05
+junior.size = -pool.size*.1
+senior.size = -pool.size*.85
+beta_lossDist.equity = pmax(beta_lossDist,equity.size)
+beta_lossDist.remaining = beta_lossDist - beta_lossDist.equity
+beta_lossDist.junior = pmax(beta_lossDist.remaining,junior.size)
+beta_lossDist.senior = beta_lossDist.remaining - beta_lossDist.junior
+NN_lossDist.equity = pmax(NN_lossDist,equity.size)
+NN_lossDist.remaining = NN_lossDist - NN_lossDist.equity
+NN_lossDist.junior = pmax(NN_lossDist.remaining,junior.size)
+NN_lossDist.senior = NN_lossDist.remaining - NN_lossDist.junior
+
+beta_lossDist.junior_normal_fit = fitdistrplus::fitdist(beta_lossDist.junior, "norm")
+hist(beta_lossDist.junior, main = NULL, xlab="Portfolio Loss")
+plot(beta_lossDist.junior_normal_fit)
+
+NN_lossDist.junior_normal_fit = fitdistrplus::fitdist(NN_lossDist.junior, "norm")
+hist(NN_lossDist.junior, main = NULL, xlab="Portfolio Loss", ylab="Count")
+plot(NN_lossDist.junior_normal_fit)
+
+#Fit Normal to Senior
+beta_lossDist.senior_normal_fit = fitdistrplus::fitdist(beta_lossDist.senior, "norm")
+hist(beta_lossDist.senior, main = NULL, xlab="Portfolio Loss")
+plot(beta_lossDist.senior_normal_fit)
+
+NN_lossDist.senior_normal_fit = fitdistrplus::fitdist(NN_lossDist.senior, "norm")
+hist(NN_lossDist.senior, main = NULL, xlab="Portfolio Loss", ylab="Count")
+plot(NN_lossDist.senior_normal_fit)
+
+#Comparison
+cdfcomp(list( beta_lossDist.junior_normal_fit), legendtext = c( "Junior"))
+cdfcomp(list( beta_lossDist.senior_normal_fit), legendtext = c( "Senior"))
 ###############
 #5yr Period VaR
 
@@ -684,22 +720,39 @@ abline(v = log(Avg_VaR_99), col="red", lty = 2, lwd = 3)
 legend(x = "bottomleft", legend = c("VaR 95% Level", "VaR 99% Level", "Avg VaR 95% Level", "Avg VaR 99% Level"), lty = c(1, 1, 2, 2), col = c("blue", "red", "blue", "red"), lwd = 3)
 
 #################
-#Tranche:Risk Management
+#Tranche:Risk Management (5yr)
 
-#Inverse Sampling
-N = 10000
-beta_lossDist = vector()
-NN_lossDist = vector()
-for (j in 1:N){
-  U = runif(1, min = min(prediction_test), max = max(prediction_test))
-  sample = prediction_test[prediction_test>U]
-  sample_sizes = portfolio$Size[prediction_test>U]
-  
-  beta_lossProp_sample = rbeta(length(sample), train_lossPropDist_beta$estimate[1], train_lossPropDist_beta$estimate[2])
-  beta_lossDist = append(beta_lossDist, -sum(beta_lossProp_sample*sample_sizes))
-  
-  NN_lossProp_sample = neuralnet::compute(loss_at_default_nn_model,test_data[prediction_test>U,])
-  NN_lossProp_sample = as.vector(NN_lossProp_sample$net.result)
-  NN_lossDist = append(NN_lossDist, -sum(NN_lossProp_sample*sample_sizes))
-}
-  
+#Fit Normal to Junior
+pool.size = sum(portfolio$Size)
+equity.size = -pool.size*.05
+junior.size = -pool.size*.1
+senior.size = -pool.size*.85
+beta_lossDist.equity = pmax(beta_lossDist,equity.size)
+beta_lossDist.remaining = beta_lossDist - beta_lossDist.equity
+beta_lossDist.junior = pmax(beta_lossDist.remaining,junior.size)
+beta_lossDist.senior = beta_lossDist.remaining - beta_lossDist.junior
+NN_lossDist.equity = pmax(NN_lossDist,equity.size)
+NN_lossDist.remaining = NN_lossDist - NN_lossDist.equity
+NN_lossDist.junior = pmax(NN_lossDist.remaining,junior.size)
+NN_lossDist.senior = NN_lossDist.remaining - NN_lossDist.junior
+
+beta_lossDist.junior_normal_fit = fitdistrplus::fitdist(beta_lossDist.junior, "norm")
+hist(beta_lossDist.junior, main = NULL, xlab="Portfolio Loss")
+plot(beta_lossDist.junior_normal_fit)
+
+NN_lossDist.junior_normal_fit = fitdistrplus::fitdist(NN_lossDist.junior, "norm")
+hist(NN_lossDist.junior, main = NULL, xlab="Portfolio Loss", ylab="Count")
+plot(NN_lossDist.junior_normal_fit)
+
+#Fit Normal to Senior
+beta_lossDist.senior_normal_fit = fitdistrplus::fitdist(beta_lossDist.senior, "norm")
+hist(beta_lossDist.senior, main = NULL, xlab="Portfolio Loss")
+plot(beta_lossDist.senior_normal_fit)
+
+NN_lossDist.senior_normal_fit = fitdistrplus::fitdist(NN_lossDist.senior, "norm")
+hist(NN_lossDist.senior, main = NULL, xlab="Portfolio Loss", ylab="Count")
+plot(NN_lossDist.senior_normal_fit)
+
+#Comparison
+cdfcomp(list( beta_lossDist.junior_normal_fit), legendtext = c( "Junior"))
+cdfcomp(list( beta_lossDist.senior_normal_fit), legendtext = c( "Senior"))
