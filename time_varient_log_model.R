@@ -571,32 +571,36 @@ senior.size = -pool.size*.85
 beta_lossDist.equity = pmax(beta_lossDist,equity.size)
 beta_lossDist.remaining = beta_lossDist - beta_lossDist.equity
 beta_lossDist.junior = pmax(beta_lossDist.remaining,junior.size)
-beta_lossDist.senior = beta_lossDist.remaining - beta_lossDist.junior
+beta_lossDist.senior = (beta_lossDist.remaining - beta_lossDist.junior)
+beta_lossPropDist.junior = beta_lossDist.junior/junior.size
+beta_lossPropDist.senior = beta_lossDist.senior/senior.size
 NN_lossDist.equity = pmax(NN_lossDist,equity.size)
 NN_lossDist.remaining = NN_lossDist - NN_lossDist.equity
 NN_lossDist.junior = pmax(NN_lossDist.remaining,junior.size)
 NN_lossDist.senior = NN_lossDist.remaining - NN_lossDist.junior
+NN_lossPropDist.junior = NN_lossDist.junior/junior.size
+NN_lossPropDist.senior = NN_lossDist.senior/senior.size
 
-beta_lossDist.junior_normal_fit = fitdistrplus::fitdist(beta_lossDist.junior, "norm")
-hist(beta_lossDist.junior, main = NULL, xlab="Portfolio Loss")
-plot(beta_lossDist.junior_normal_fit)
+beta_lossPropDist.junior_normal_fit = fitdistrplus::fitdist(beta_lossPropDist.junior, "norm")
+hist(beta_lossPropDist.junior, main = NULL, xlab="Portfolio Loss")
+plot(beta_lossPropDist.junior_normal_fit)
 
-NN_lossDist.junior_normal_fit = fitdistrplus::fitdist(NN_lossDist.junior, "norm")
-hist(NN_lossDist.junior, main = NULL, xlab="Portfolio Loss", ylab="Count")
-plot(NN_lossDist.junior_normal_fit)
+NN_lossPropDist.junior_normal_fit = fitdistrplus::fitdist(NN_lossPropDist.junior, "norm")
+hist(NN_lossPropDist.junior, main = NULL, xlab="Portfolio Loss", ylab="Count")
+plot(NN_lossPropDist.junior_normal_fit)
 
 #Fit Normal to Senior
-beta_lossDist.senior_normal_fit = fitdistrplus::fitdist(beta_lossDist.senior, "norm")
-hist(beta_lossDist.senior, main = NULL, xlab="Portfolio Loss")
-plot(beta_lossDist.senior_normal_fit)
+beta_lossPropDist.senior_normal_fit = fitdistrplus::fitdist(beta_lossPropDist.senior, "norm")
+hist(beta_lossPropDist.senior, main = NULL, xlab="Portfolio Loss")
+plot(beta_lossPropDist.senior_normal_fit)
 
-NN_lossDist.senior_normal_fit = fitdistrplus::fitdist(NN_lossDist.senior, "norm")
-hist(NN_lossDist.senior, main = NULL, xlab="Portfolio Loss", ylab="Count")
-plot(NN_lossDist.senior_normal_fit)
+NN_lossPropDist.senior_normal_fit = fitdistrplus::fitdist(NN_lossPropDist.senior, "norm")
+hist(NN_lossPropDist.senior, main = NULL, xlab="Portfolio Loss", ylab="Count")
+plot(NN_lossPropDist.senior_normal_fit)
 
 #Comparison
-cdfcomp(list( beta_lossDist.junior_normal_fit), legendtext = c( "Junior"))
-cdfcomp(list( beta_lossDist.senior_normal_fit), legendtext = c( "Senior"))
+cdfcomp(list( NN_lossPropDist.junior_normal_fit), main = "Junior Tranche (1yr)", legendtext = c( "Theoretical CDF"),xlab = "Tranche Loss (%)", xlim = c(0,1))
+cdfcomp(list( NN_lossPropDist.senior_normal_fit), main = "Senior Tranche (1yr)", legendtext = c( "Theoretical CDF"),xlab = "Tranche Loss (%)", xlim = c(0,1))
 ###############
 #5yr Period VaR
 
@@ -721,7 +725,6 @@ legend(x = "bottomleft", legend = c("VaR 95% Level", "VaR 99% Level", "Avg VaR 9
 
 #################
 #Tranche:Risk Management (5yr)
-
 #Fit Normal to Junior
 pool.size = sum(portfolio$Size)
 equity.size = -pool.size*.05
@@ -730,29 +733,33 @@ senior.size = -pool.size*.85
 beta_lossDist.equity = pmax(beta_lossDist,equity.size)
 beta_lossDist.remaining = beta_lossDist - beta_lossDist.equity
 beta_lossDist.junior = pmax(beta_lossDist.remaining,junior.size)
-beta_lossDist.senior = beta_lossDist.remaining - beta_lossDist.junior
+beta_lossDist.senior = (beta_lossDist.remaining - beta_lossDist.junior)
+beta_lossPropDist.junior = beta_lossDist.junior/junior.size
+beta_lossPropDist.senior = beta_lossDist.senior/senior.size
 NN_lossDist.equity = pmax(NN_lossDist,equity.size)
 NN_lossDist.remaining = NN_lossDist - NN_lossDist.equity
 NN_lossDist.junior = pmax(NN_lossDist.remaining,junior.size)
 NN_lossDist.senior = NN_lossDist.remaining - NN_lossDist.junior
+NN_lossPropDist.junior = NN_lossDist.junior/junior.size
+NN_lossPropDist.senior = NN_lossDist.senior/senior.size
 
-beta_lossDist.junior_normal_fit = fitdistrplus::fitdist(beta_lossDist.junior, "norm")
-hist(beta_lossDist.junior, main = NULL, xlab="Portfolio Loss")
-plot(beta_lossDist.junior_normal_fit)
+beta_lossPropDist.junior_normal_fit = fitdistrplus::fitdist(beta_lossPropDist.junior, "norm")
+hist(beta_lossPropDist.junior, main = NULL, xlab="Portfolio Loss")
+plot(beta_lossPropDist.junior_normal_fit)
 
-NN_lossDist.junior_normal_fit = fitdistrplus::fitdist(NN_lossDist.junior, "norm")
-hist(NN_lossDist.junior, main = NULL, xlab="Portfolio Loss", ylab="Count")
-plot(NN_lossDist.junior_normal_fit)
+NN_lossPropDist.junior_normal_fit = fitdistrplus::fitdist(NN_lossPropDist.junior, "norm")
+hist(NN_lossPropDist.junior, main = NULL, xlab="Portfolio Loss", ylab="Count")
+plot(NN_lossPropDist.junior_normal_fit)
 
 #Fit Normal to Senior
-beta_lossDist.senior_normal_fit = fitdistrplus::fitdist(beta_lossDist.senior, "norm")
-hist(beta_lossDist.senior, main = NULL, xlab="Portfolio Loss")
-plot(beta_lossDist.senior_normal_fit)
+beta_lossPropDist.senior_normal_fit = fitdistrplus::fitdist(beta_lossPropDist.senior, "norm")
+hist(beta_lossPropDist.senior, main = NULL, xlab="Portfolio Loss")
+plot(beta_lossPropDist.senior_normal_fit)
 
-NN_lossDist.senior_normal_fit = fitdistrplus::fitdist(NN_lossDist.senior, "norm")
-hist(NN_lossDist.senior, main = NULL, xlab="Portfolio Loss", ylab="Count")
-plot(NN_lossDist.senior_normal_fit)
+NN_lossPropDist.senior_normal_fit = fitdistrplus::fitdist(NN_lossPropDist.senior, "norm")
+hist(NN_lossPropDist.senior, main = NULL, xlab="Portfolio Loss", ylab="Count")
+plot(NN_lossPropDist.senior_normal_fit)
 
 #Comparison
-cdfcomp(list( beta_lossDist.junior_normal_fit), legendtext = c( "Junior"))
-cdfcomp(list( beta_lossDist.senior_normal_fit), legendtext = c( "Senior"))
+cdfcomp(list( NN_lossPropDist.junior_normal_fit), main = "Junior Tranche (5yr)", legendtext = c( "Theoretical CDF"),xlab = "Tranche Loss (%)", xlim = c(0,1))
+cdfcomp(list( NN_lossPropDist.senior_normal_fit), main = "Senior Tranche (5yr)", legendtext = c( "Theoretical CDF"),xlab = "Tranche Loss (%)",xlim = c(0,1))
