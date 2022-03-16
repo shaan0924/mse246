@@ -12,7 +12,7 @@ library(fitdistrplus)
 library(stats)
 library("ROSE")
 
-#setwd("/Users/jackparkin/Desktop/MS&E 246/Project")
+setwd("/Users/jackparkin/Desktop/MS&E 246/Project")
 setwd("/Users/sihguat/Desktop/MSE_246/mse246")
 
 ###################
@@ -262,6 +262,7 @@ auc = unlist(slot(performance(prediction_test, 'auc'), 'y.values'))
 auc
 #0.6578393
 
+
 #Plotting L1 coefficients
 L1_coef = as.matrix(coef(model_L1, s=model_L1$lambda[best_L1_lambda_index]))
 rownames(L1_coef) = rownames(coef(model_L1))
@@ -365,7 +366,6 @@ numBins = round((max(train_lossProp_Dist) - min(train_lossProp_Dist))/(2*IQR(tra
 hist(train_lossProp_Dist, breaks =  numBins, main = "Histogram of Loan Loss Proportion at Default", xlab="Proportion of Loan Loss at Default", ylab="Train Count")
 plot(train_lossPropDist_beta)
 
-
 ################################
 #Portfolio Selection
 Last_Date = as.Date("2013-02-01")
@@ -406,8 +406,6 @@ SP500_ARMA_2_1_GARCH_1_1 = ugarchfit(data = SP500_Log_returns$Log_returns, spec 
 
 projection = ugarchboot(SP500_ARMA_2_1_GARCH_1_1, n.ahead = 60, method =  c("Partial", "Full")[1])
 as.data.frame(projection, type = "summary")
-as.data.frame(projection, type = "q", qtile = c(0.05, 0.95))
-as.data.frame(projection, type = "q", qtile = c(0.01, 0.99))
 plot(projection, which = 2)
 projections = rbind(projections, c("SP500", "1yr", SP500_Log_returns$GSPC.price[SP500_Log_returns$month.bin == Last_Date]* exp(as.data.frame(projection, type = "summary", )[3,12])))
 projections = rbind(projections, c("SP500", "5yr", SP500_Log_returns$GSPC.price[SP500_Log_returns$month.bin == Last_Date]* exp(as.data.frame(projection, type = "summary", )[3,60])))
@@ -439,6 +437,7 @@ for (state in unique(UnemploymentUSbyState$State)){
   projections = rbind(projections, c("UR", "5yr", state, ((growth_rate + 1)^5 * UnemploymentUSbyState$UR[UnemploymentUSbyState$DATE == Last_Date& UnemploymentUSbyState$State == state])))
 }
 colnames(projections) = c("Metrics", "Period", "State", "Projection")
+
 ###############
 #1yr Period VaR
 #Adding Projections
@@ -461,22 +460,23 @@ portfolio$Age =  (portfolio$Age_Raw + 1 - mean(modified_data$Age))/ sd(modified_
 test_data = subset(portfolio, select = -c(ApprovalDate, Date, Size, GrossChargeOffAmount, Index, BorrState, ProjectState, Age_Raw))
 x_test = model.matrix(Default ~., test_data)[, -1]
 prediction_test = predict(model_L1, newx = x_test, s = best_L1_lambda, type = "response")
+hist(prediction_test, main= NULL, xlab="Best L1 Model Default Probability" )
 
 #Inverse Sampling
 N = 10000
 beta_lossDist = vector()
-NN_lossDist = vector()
+linear_lossDist = vector()
 for (j in 1:N){
-  U = runif(1, min = min(prediction_test), max = max(prediction_test))
+  U = runif(1,min = min(prediction_test), max = max(prediction_test))
   sample = prediction_test[prediction_test>U]
   sample_sizes = portfolio$Size[prediction_test>U]
   
   beta_lossProp_sample = rbeta(length(sample), train_lossPropDist_beta$estimate[1], train_lossPropDist_beta$estimate[2])
   beta_lossDist = append(beta_lossDist, -sum(beta_lossProp_sample*sample_sizes))
   
-  NN_lossProp_sample = neuralnet::compute(loss_at_default_nn_model,test_data[prediction_test>U,])
-  NN_lossProp_sample = as.vector(NN_lossProp_sample$net.result)
-  NN_lossDist = append(NN_lossDist, -sum(NN_lossProp_sample*sample_sizes))
+  linear_lossProp_sample = predict(loss_at_default_linear_model, test_data[prediction_test>U,])
+  linear_lossProp_sample = as.vector(linear_lossProp_sample)
+  linear_lossDist = append(linear_lossDist, -sum(linear_lossProp_sample*sample_sizes))
 }
 
 #Nonparametric VaR
@@ -496,13 +496,13 @@ abline(v = -Avg_VaR_95, col="blue", lty = 2, lwd = 3)
 abline(v = -Avg_VaR_99, col="red", lty = 2, lwd = 3)
 legend(x = "top",legend = c("VaR 95% Level", "VaR 99% Level", "Avg VaR 95% Level", "Avg VaR 99% Level"), lty = c(1, 1, 2, 2), col = c("blue", "red", "blue", "red"), lwd = 3)
 
-VaR_95 = -quantile(NN_lossDist, prob = c(0.05))
-VaR_99 = -quantile(NN_lossDist, prob = c(0.01))
-Avg_VaR_95 = -sum(NN_lossDist[NN_lossDist < -VaR_95])/ length(NN_lossDist[NN_lossDist < -VaR_95])
-Avg_VaR_99 = -sum(NN_lossDist[NN_lossDist <= -VaR_99])/ length(NN_lossDist[NN_lossDist <= -VaR_99])
-VaRs = rbind(VaRs, setNames(as.list(c("Nonparametric", "NN", round(VaR_95), round(VaR_99), round(Avg_VaR_95), round(Avg_VaR_99))), names(VaRs)))
-
-hist(NN_lossDist, main = NULL, xlab="Portfolio Loss", xlim = c(-max(VaR_95, VaR_99, Avg_VaR_95, Avg_VaR_99),0)) 
+VaR_95 = -quantile(linear_lossDist, prob = c(0.05))
+VaR_99 = -quantile(linear_lossDist, prob = c(0.01))
+Avg_VaR_95 = -sum(linear_lossDist[linear_lossDist < -VaR_95])/ length(linear_lossDist[linear_lossDist < -VaR_95])
+Avg_VaR_99 = -sum(linear_lossDist[linear_lossDist <= -VaR_99])/ length(linear_lossDist[linear_lossDist <= -VaR_99])
+VaRs = rbind(VaRs, setNames(as.list(c("Nonparametric", "Linear", round(VaR_95), round(VaR_99), round(Avg_VaR_95), round(Avg_VaR_99))), names(VaRs)))
+VaRs
+hist(linear_lossDist, main = NULL, xlab="Portfolio Loss", xlim = c(-max(VaR_95, VaR_99, Avg_VaR_95, Avg_VaR_99),0)) 
 abline(v = -VaR_95, col="blue", lwd = 3) 
 abline(v = -VaR_99, col="red", lwd = 3)
 abline(v = -Avg_VaR_95, col="blue", lty = 2, lwd = 3) 
@@ -515,6 +515,7 @@ hist(beta_lossDist, main = NULL, xlab="Portfolio Loss")
 plot(beta_lossDist_normal_fit)
 
 beta_lossDist_log = log(-beta_lossDist)
+beta_lossDist_log[beta_lossDist_log = "-inf"] = 0
 beta_lossDist_log_normal_fit = fitdistrplus::fitdist(beta_lossDist_log, "norm")
 hist(beta_lossDist_log, main = NULL, xlab="Portfolio Loss")
 plot(beta_lossDist_log_normal_fit)
@@ -535,30 +536,28 @@ abline(v = log(Avg_VaR_95), col="blue", lty = 2, lwd = 3)
 abline(v = log(Avg_VaR_99), col="red", lty = 2, lwd = 3)
 legend(x = "bottomleft", legend = c("VaR 95% Level", "VaR 99% Level", "Avg VaR 95% Level", "Avg VaR 99% Level"), lty = c(1, 1, 2, 2), col = c("blue", "red", "blue", "red"), lwd = 3)
 
-NN_lossDist_normal_fit = fitdistrplus::fitdist(NN_lossDist, "norm")
-hist(NN_lossDist, main = NULL, xlab="Portfolio Loss", ylab="Count")
-plot(NN_lossDist_normal_fit)
+linear_lossDist_log = log(-linear_lossDist)
+linear_lossDist_log_normal_fit = fitdistrplus::fitdist(linear_lossDist_log, "norm")
+hist(linear_lossDist_log, main = NULL, xlab="Portfolio Loss")
+plot(linear_lossDist_log_normal_fit)
+qqcomp(linear_lossDist_log_normal_fit, legendtext = "Normal",  main = NULL, xlab="Portfolio Log Loss")
 
-NN_lossDist_log = log(-NN_lossDist)
-NN_lossDist_log_normal_fit = fitdistrplus::fitdist(NN_lossDist_log, "norm")
-hist(NN_lossDist_log, main = NULL, xlab="Portfolio Loss")
-plot(NN_lossDist_log_normal_fit)
-qqcomp(NN_lossDist_log_normal_fit, legendtext = "Normal",  main = NULL, xlab="Portfolio Log Loss")
-
-VaR_95 = exp(qnorm(0.95, mean = NN_lossDist_log_normal_fit$estimate[1], sd = NN_lossDist_log_normal_fit$estimate[2], lower.tail = TRUE, log.p = FALSE))
-VaR_99 = exp(qnorm(0.99, mean = NN_lossDist_log_normal_fit$estimate[1], sd = NN_lossDist_log_normal_fit$estimate[2], lower.tail = TRUE, log.p = FALSE))
+VaR_95 = exp(qnorm(0.95, mean = linear_lossDist_log_normal_fit$estimate[1], sd = linear_lossDist_log_normal_fit$estimate[2], lower.tail = TRUE, log.p = FALSE))
+VaR_99 = exp(qnorm(0.99, mean = linear_lossDist_log_normal_fit$estimate[1], sd = linear_lossDist_log_normal_fit$estimate[2], lower.tail = TRUE, log.p = FALSE))
 x = seq(0.95, 0.999, 0.001)
-Avg_VaR_95 = sum(exp(qnorm(x, mean = NN_lossDist_log_normal_fit$estimate[1], sd = NN_lossDist_log_normal_fit$estimate[2], lower.tail = TRUE, log.p = FALSE)))/length(x)
+Avg_VaR_95 = sum(exp(qnorm(x, mean = linear_lossDist_log_normal_fit$estimate[1], sd = linear_lossDist_log_normal_fit$estimate[2], lower.tail = TRUE, log.p = FALSE)))/length(x)
 x = seq(0.99, 0.999, 0.001)
-Avg_VaR_99 = sum(exp(qnorm(x, mean = NN_lossDist_log_normal_fit$estimate[1], sd = NN_lossDist_log_normal_fit$estimate[2], lower.tail = TRUE, log.p = FALSE)))/length(x)
-VaRs = rbind(VaRs, setNames(as.list(c("Parametric", "NN - Log Normal", round(VaR_95), round(VaR_99), round(Avg_VaR_95), round(Avg_VaR_99))), names(VaRs)))
+Avg_VaR_99 = sum(exp(qnorm(x, mean = linear_lossDist_log_normal_fit$estimate[1], sd = linear_lossDist_log_normal_fit$estimate[2], lower.tail = TRUE, log.p = FALSE)))/length(x)
+VaRs = rbind(VaRs, setNames(as.list(c("Parametric", "Linear - Log Normal", round(VaR_95), round(VaR_99), round(Avg_VaR_95), round(Avg_VaR_99))), names(VaRs)))
 
-denscomp(ft = NN_lossDist_log_normal_fit, legendtext = "Normal",  main = NULL, xlab="Portfolio Log Loss",, xlim = c(0,max(log(VaR_95), log(VaR_99), log(Avg_VaR_95), log(Avg_VaR_99))))
+denscomp(ft = linear_lossDist_log_normal_fit, legendtext = "Normal",  main = NULL, xlab="Portfolio Log Loss",, xlim = c(0,max(log(VaR_95), log(VaR_99), log(Avg_VaR_95), log(Avg_VaR_99))))
 abline(v = log(VaR_95), col="blue", lwd = 3) 
 abline(v = log(VaR_99), col="red", lwd = 3)
 abline(v = log(Avg_VaR_95), col="blue", lty = 2, lwd = 3) 
 abline(v = log(Avg_VaR_99), col="red", lty = 2, lwd = 3)
 legend(x = "bottomleft", legend = c("VaR 95% Level", "VaR 99% Level", "Avg VaR 95% Level", "Avg VaR 99% Level"), lty = c(1, 1, 2, 2), col = c("blue", "red", "blue", "red"), lwd = 3)
+
+colnames(VaRs) = c("Type", "Loss at Default Model", "95% VaR", "99% VaR", "95% Avg. VaR", "99% Avg. VaR")
 
 #################
 #Tranche:Risk Management (1yr)
@@ -568,39 +567,42 @@ pool.size = sum(portfolio$Size)
 equity.size = -pool.size*.05
 junior.size = -pool.size*.1
 senior.size = -pool.size*.85
+equity.size
 beta_lossDist.equity = pmax(beta_lossDist,equity.size)
 beta_lossDist.remaining = beta_lossDist - beta_lossDist.equity
 beta_lossDist.junior = pmax(beta_lossDist.remaining,junior.size)
 beta_lossDist.senior = (beta_lossDist.remaining - beta_lossDist.junior)
 beta_lossPropDist.junior = beta_lossDist.junior/junior.size
 beta_lossPropDist.senior = beta_lossDist.senior/senior.size
-NN_lossDist.equity = pmax(NN_lossDist,equity.size)
-NN_lossDist.remaining = NN_lossDist - NN_lossDist.equity
-NN_lossDist.junior = pmax(NN_lossDist.remaining,junior.size)
-NN_lossDist.senior = NN_lossDist.remaining - NN_lossDist.junior
-NN_lossPropDist.junior = NN_lossDist.junior/junior.size
-NN_lossPropDist.senior = NN_lossDist.senior/senior.size
+linear_lossDist.equity = pmax(linear_lossDist,equity.size)
+linear_lossDist.remaining = linear_lossDist - linear_lossDist.equity
+linear_lossDist.junior = pmax(linear_lossDist.remaining,junior.size)
+linear_lossDist.senior = linear_lossDist.remaining - linear_lossDist.junior
+linear_lossPropDist.junior = linear_lossDist.junior/junior.size
+linear_lossPropDist.senior = linear_lossDist.senior/senior.size
 
 beta_lossPropDist.junior_normal_fit = fitdistrplus::fitdist(beta_lossPropDist.junior, "norm")
 hist(beta_lossPropDist.junior, main = NULL, xlab="Portfolio Loss")
 plot(beta_lossPropDist.junior_normal_fit)
 
-NN_lossPropDist.junior_normal_fit = fitdistrplus::fitdist(NN_lossPropDist.junior, "norm")
-hist(NN_lossPropDist.junior, main = NULL, xlab="Portfolio Loss", ylab="Count")
-plot(NN_lossPropDist.junior_normal_fit)
+linear_lossPropDist.junior_normal_fit = fitdistrplus::fitdist(linear_lossDist.junior, "norm")
+hist(linear_lossPropDist.junior, main = NULL, xlab="Portfolio Loss")
+plot(linear_lossPropDist.junior_normal_fit)
 
 #Fit Normal to Senior
 beta_lossPropDist.senior_normal_fit = fitdistrplus::fitdist(beta_lossPropDist.senior, "norm")
 hist(beta_lossPropDist.senior, main = NULL, xlab="Portfolio Loss")
 plot(beta_lossPropDist.senior_normal_fit)
 
-NN_lossPropDist.senior_normal_fit = fitdistrplus::fitdist(NN_lossPropDist.senior, "norm")
-hist(NN_lossPropDist.senior, main = NULL, xlab="Portfolio Loss", ylab="Count")
-plot(NN_lossPropDist.senior_normal_fit)
+linear_lossPropDist.senior_normal_fit = fitdistrplus::fitdist(linear_lossPropDist.senior, "norm")
+hist(linear_lossPropDist.senior, main = NULL, xlab="Portfolio Loss")
+plot(linear_lossPropDist.senior_normal_fit)
 
 #Comparison
-cdfcomp(list( NN_lossPropDist.junior_normal_fit), main = "Junior Tranche (1yr)", legendtext = c( "Theoretical CDF"),xlab = "Tranche Loss (%)", xlim = c(0,1))
-cdfcomp(list( NN_lossPropDist.senior_normal_fit), main = "Senior Tranche (1yr)", legendtext = c( "Theoretical CDF"),xlab = "Tranche Loss (%)", xlim = c(0,1))
+cdfcomp(list(beta_lossPropDist.junior_normal_fit), main = "Junior Tranche (1yr)", legendtext = c( "Theoretical CDF"),xlab = "Tranche Loss (%)", xlim = c(0,1))
+cdfcomp(list( beta_lossPropDist.senior_normal_fit), main = "Senior Tranche (1yr)", legendtext = c( "Theoretical CDF"),xlab = "Tranche Loss (%)", xlim = c(0,1))
+
+
 ###############
 #5yr Period VaR
 
@@ -623,28 +625,29 @@ portfolio$Age =  (portfolio$Age_Raw + 5 - mean(modified_data$Age))/ sd(modified_
 test_data = subset(portfolio, select = -c(ApprovalDate, Date, Size, GrossChargeOffAmount, Index, BorrState, ProjectState, Age_Raw))
 x_test = model.matrix(Default ~., test_data)[, -1]
 prediction_test = predict(model_L1, newx = x_test, s = best_L1_lambda, type = "response")
+hist(prediction_test, main= NULL, xlab="Best L1 Model Default Probability" )
 
 #Inverse Sampling
 N = 10000
 beta_lossDist = vector()
-NN_lossDist = vector()
+linear_lossDist = vector()
 for (j in 1:N){
-  U = runif(1, min = min(prediction_test), max = max(prediction_test))
+  U = runif(1,min = min(prediction_test), max = max(prediction_test))
   sample = prediction_test[prediction_test>U]
   sample_sizes = portfolio$Size[prediction_test>U]
   
   beta_lossProp_sample = rbeta(length(sample), train_lossPropDist_beta$estimate[1], train_lossPropDist_beta$estimate[2])
   beta_lossDist = append(beta_lossDist, -sum(beta_lossProp_sample*sample_sizes))
   
-  NN_lossProp_sample = neuralnet::compute(loss_at_default_nn_model,test_data[prediction_test>U,])
-  NN_lossProp_sample = as.vector(NN_lossProp_sample$net.result)
-  NN_lossDist = append(NN_lossDist, -sum(NN_lossProp_sample*sample_sizes))
+  linear_lossProp_sample = predict(loss_at_default_linear_model, test_data[prediction_test>U,])
+  linear_lossProp_sample = as.vector(linear_lossProp_sample)
+  linear_lossDist = append(linear_lossDist, -sum(linear_lossProp_sample*sample_sizes))
 }
 
 #Nonparametric VaR
 VaRs = data.frame(matrix(ncol = 6, nrow = 0))
 colnames(VaRs) = c("Type", "Loss at Default Model", "95% VaR", "99% VaR", "95% Avg. VaR", "99% Avg. VaR")
-
+VaRs
 VaR_95 = -quantile(beta_lossDist, prob = c(0.05))
 VaR_99 = -quantile(beta_lossDist, prob = c(0.01))
 Avg_VaR_95 = -sum(beta_lossDist[beta_lossDist < -VaR_95])/ length(beta_lossDist[beta_lossDist < -VaR_95])
@@ -658,27 +661,26 @@ abline(v = -Avg_VaR_95, col="blue", lty = 2, lwd = 3)
 abline(v = -Avg_VaR_99, col="red", lty = 2, lwd = 3)
 legend(x = "top",legend = c("VaR 95% Level", "VaR 99% Level", "Avg VaR 95% Level", "Avg VaR 99% Level"), lty = c(1, 1, 2, 2), col = c("blue", "red", "blue", "red"), lwd = 3)
 
-VaR_95 = -quantile(NN_lossDist, prob = c(0.05))
-VaR_99 = -quantile(NN_lossDist, prob = c(0.01))
-Avg_VaR_95 = -sum(NN_lossDist[NN_lossDist < -VaR_95])/ length(NN_lossDist[NN_lossDist < -VaR_95])
-Avg_VaR_99 = -sum(NN_lossDist[NN_lossDist <= -VaR_99])/ length(NN_lossDist[NN_lossDist <= -VaR_99])
-VaRs = rbind(VaRs, setNames(as.list(c("Nonparametric", "NN", round(VaR_95), round(VaR_99), round(Avg_VaR_95), round(Avg_VaR_99))), names(VaRs)))
-
-hist(NN_lossDist, main = NULL, xlab="Portfolio Loss", xlim = c(-max(VaR_95, VaR_99, Avg_VaR_95, Avg_VaR_99),0)) 
+VaR_95 = -quantile(linear_lossDist, prob = c(0.05))
+VaR_99 = -quantile(linear_lossDist, prob = c(0.01))
+Avg_VaR_95 = -sum(linear_lossDist[linear_lossDist < -VaR_95])/ length(linear_lossDist[linear_lossDist < -VaR_95])
+Avg_VaR_99 = -sum(linear_lossDist[linear_lossDist <= -VaR_99])/ length(linear_lossDist[linear_lossDist <= -VaR_99])
+VaRs = rbind(VaRs, setNames(as.list(c("Nonparametric", "Linear", round(VaR_95), round(VaR_99), round(Avg_VaR_95), round(Avg_VaR_99))), names(VaRs)))
+VaRs
+hist(linear_lossDist, main = NULL, xlab="Portfolio Loss", xlim = c(-max(VaR_95, VaR_99, Avg_VaR_95, Avg_VaR_99),0)) 
 abline(v = -VaR_95, col="blue", lwd = 3) 
 abline(v = -VaR_99, col="red", lwd = 3)
 abline(v = -Avg_VaR_95, col="blue", lty = 2, lwd = 3) 
 abline(v = -Avg_VaR_99, col="red", lty = 2, lwd = 3)
 legend(x = "top",legend = c("VaR 95% Level", "VaR 99% Level", "Avg VaR 95% Level", "Avg VaR 99% Level"), lty = c(1, 1, 2, 2), col = c("blue", "red", "blue", "red"), lwd = 3)
 
-
 #Parametric VaR
-
 beta_lossDist_normal_fit = fitdistrplus::fitdist(beta_lossDist, "norm")
-hist(beta_lossDist, main = NULL, xlab="Portfolio Loss") 
+hist(beta_lossDist, main = NULL, xlab="Portfolio Loss")
 plot(beta_lossDist_normal_fit)
 
 beta_lossDist_log = log(-beta_lossDist)
+beta_lossDist_log[beta_lossDist_log = "-inf"] = 0
 beta_lossDist_log_normal_fit = fitdistrplus::fitdist(beta_lossDist_log, "norm")
 hist(beta_lossDist_log, main = NULL, xlab="Portfolio Loss")
 plot(beta_lossDist_log_normal_fit)
@@ -699,30 +701,29 @@ abline(v = log(Avg_VaR_95), col="blue", lty = 2, lwd = 3)
 abline(v = log(Avg_VaR_99), col="red", lty = 2, lwd = 3)
 legend(x = "bottomleft", legend = c("VaR 95% Level", "VaR 99% Level", "Avg VaR 95% Level", "Avg VaR 99% Level"), lty = c(1, 1, 2, 2), col = c("blue", "red", "blue", "red"), lwd = 3)
 
-NN_lossDist_normal_fit = fitdistrplus::fitdist(NN_lossDist, "norm")
-hist(NN_lossDist, main = NULL, xlab="Portfolio Loss", ylab="Count") + plot(NN_lossDist_normal_fit)
+linear_lossDist_log = log(-linear_lossDist)
+linear_lossDist_log_normal_fit = fitdistrplus::fitdist(linear_lossDist_log, "norm")
+hist(linear_lossDist_log, main = NULL, xlab="Portfolio Loss")
+plot(linear_lossDist_log_normal_fit)
+qqcomp(linear_lossDist_log_normal_fit, legendtext = "Normal",  main = NULL, xlab="Portfolio Log Loss")
 
-NN_lossDist_log = log(-NN_lossDist)
-NN_lossDist_log_normal_fit = fitdistrplus::fitdist(NN_lossDist_log, "norm")
-hist(NN_lossDist_log, main = NULL, xlab="Portfolio Loss")
-plot(NN_lossDist_log_normal_fit)
-qqcomp(NN_lossDist_log_normal_fit, legendtext = "Normal",  main = NULL, xlab="Portfolio Log Loss")
-
-VaR_95 = exp(qnorm(0.95, mean = NN_lossDist_log_normal_fit$estimate[1], sd = NN_lossDist_log_normal_fit$estimate[2], lower.tail = TRUE, log.p = FALSE))
-VaR_99 = exp(qnorm(0.99, mean = NN_lossDist_log_normal_fit$estimate[1], sd = NN_lossDist_log_normal_fit$estimate[2], lower.tail = TRUE, log.p = FALSE))
+VaR_95 = exp(qnorm(0.95, mean = linear_lossDist_log_normal_fit$estimate[1], sd = linear_lossDist_log_normal_fit$estimate[2], lower.tail = TRUE, log.p = FALSE))
+VaR_99 = exp(qnorm(0.99, mean = linear_lossDist_log_normal_fit$estimate[1], sd = linear_lossDist_log_normal_fit$estimate[2], lower.tail = TRUE, log.p = FALSE))
 x = seq(0.95, 0.999, 0.001)
-Avg_VaR_95 = sum(exp(qnorm(x, mean = NN_lossDist_log_normal_fit$estimate[1], sd = NN_lossDist_log_normal_fit$estimate[2], lower.tail = TRUE, log.p = FALSE)))/length(x)
+Avg_VaR_95 = sum(exp(qnorm(x, mean = linear_lossDist_log_normal_fit$estimate[1], sd = linear_lossDist_log_normal_fit$estimate[2], lower.tail = TRUE, log.p = FALSE)))/length(x)
 x = seq(0.99, 0.999, 0.001)
-Avg_VaR_99 = sum(exp(qnorm(x, mean = NN_lossDist_log_normal_fit$estimate[1], sd = NN_lossDist_log_normal_fit$estimate[2], lower.tail = TRUE, log.p = FALSE)))/length(x)
-VaRs = rbind(VaRs, setNames(as.list(c("Parametric", "NN - Log Normal", round(VaR_95), round(VaR_99), round(Avg_VaR_95), round(Avg_VaR_99))), names(VaRs)))
+Avg_VaR_99 = sum(exp(qnorm(x, mean = linear_lossDist_log_normal_fit$estimate[1], sd = linear_lossDist_log_normal_fit$estimate[2], lower.tail = TRUE, log.p = FALSE)))/length(x)
+VaRs = rbind(VaRs, setNames(as.list(c("Parametric", "Linear - Log Normal", round(VaR_95), round(VaR_99), round(Avg_VaR_95), round(Avg_VaR_99))), names(VaRs)))
 
-denscomp(ft = NN_lossDist_log_normal_fit, legendtext = "Normal",  main = NULL, xlab="Portfolio Log Loss",, xlim = c(0,max(log(VaR_95), log(VaR_99), log(Avg_VaR_95), log(Avg_VaR_99))))
+denscomp(ft = linear_lossDist_log_normal_fit, legendtext = "Normal",  main = NULL, xlab="Portfolio Log Loss",, xlim = c(0,max(log(VaR_95), log(VaR_99), log(Avg_VaR_95), log(Avg_VaR_99))))
 abline(v = log(VaR_95), col="blue", lwd = 3) 
 abline(v = log(VaR_99), col="red", lwd = 3)
 abline(v = log(Avg_VaR_95), col="blue", lty = 2, lwd = 3) 
 abline(v = log(Avg_VaR_99), col="red", lty = 2, lwd = 3)
 legend(x = "bottomleft", legend = c("VaR 95% Level", "VaR 99% Level", "Avg VaR 95% Level", "Avg VaR 99% Level"), lty = c(1, 1, 2, 2), col = c("blue", "red", "blue", "red"), lwd = 3)
 
+colnames(VaRs) = c("Type", "Loss at Default Model", "95% VaR", "99% VaR", "95% Avg. VaR", "99% Avg. VaR")
+VaRs
 #################
 #Tranche:Risk Management (5yr)
 #Fit Normal to Junior
@@ -736,30 +737,30 @@ beta_lossDist.junior = pmax(beta_lossDist.remaining,junior.size)
 beta_lossDist.senior = (beta_lossDist.remaining - beta_lossDist.junior)
 beta_lossPropDist.junior = beta_lossDist.junior/junior.size
 beta_lossPropDist.senior = beta_lossDist.senior/senior.size
-NN_lossDist.equity = pmax(NN_lossDist,equity.size)
-NN_lossDist.remaining = NN_lossDist - NN_lossDist.equity
-NN_lossDist.junior = pmax(NN_lossDist.remaining,junior.size)
-NN_lossDist.senior = NN_lossDist.remaining - NN_lossDist.junior
-NN_lossPropDist.junior = NN_lossDist.junior/junior.size
-NN_lossPropDist.senior = NN_lossDist.senior/senior.size
+linear_lossDist.equity = pmax(linear_lossDist,equity.size)
+linear_lossDist.remaining = linear_lossDist - linear_lossDist.equity
+linear_lossDist.junior = pmax(linear_lossDist.remaining,junior.size)
+linear_lossDist.senior = linear_lossDist.remaining - linear_lossDist.junior
+linear_lossPropDist.junior = linear_lossDist.junior/junior.size
+linear_lossPropDist.senior = linear_lossDist.senior/senior.size
 
 beta_lossPropDist.junior_normal_fit = fitdistrplus::fitdist(beta_lossPropDist.junior, "norm")
 hist(beta_lossPropDist.junior, main = NULL, xlab="Portfolio Loss")
 plot(beta_lossPropDist.junior_normal_fit)
 
-NN_lossPropDist.junior_normal_fit = fitdistrplus::fitdist(NN_lossPropDist.junior, "norm")
-hist(NN_lossPropDist.junior, main = NULL, xlab="Portfolio Loss", ylab="Count")
-plot(NN_lossPropDist.junior_normal_fit)
+linear_lossPropDist.junior_normal_fit = fitdistrplus::fitdist(linear_lossDist.junior, "norm")
+hist(linear_lossPropDist.junior, main = NULL, xlab="Portfolio Loss")
+plot(linear_lossPropDist.junior_normal_fit)
 
 #Fit Normal to Senior
 beta_lossPropDist.senior_normal_fit = fitdistrplus::fitdist(beta_lossPropDist.senior, "norm")
 hist(beta_lossPropDist.senior, main = NULL, xlab="Portfolio Loss")
 plot(beta_lossPropDist.senior_normal_fit)
 
-NN_lossPropDist.senior_normal_fit = fitdistrplus::fitdist(NN_lossPropDist.senior, "norm")
-hist(NN_lossPropDist.senior, main = NULL, xlab="Portfolio Loss", ylab="Count")
-plot(NN_lossPropDist.senior_normal_fit)
+linear_lossPropDist.senior_normal_fit = fitdistrplus::fitdist(linear_lossPropDist.senior, "norm")
+hist(linear_lossPropDist.senior, main = NULL, xlab="Portfolio Loss")
+plot(linear_lossPropDist.senior_normal_fit)
 
 #Comparison
-cdfcomp(list( NN_lossPropDist.junior_normal_fit), main = "Junior Tranche (5yr)", legendtext = c( "Theoretical CDF"),xlab = "Tranche Loss (%)", xlim = c(0,1))
-cdfcomp(list( NN_lossPropDist.senior_normal_fit), main = "Senior Tranche (5yr)", legendtext = c( "Theoretical CDF"),xlab = "Tranche Loss (%)",xlim = c(0,1))
+cdfcomp(list( beta_lossPropDist.junior_normal_fit), main = "Junior Tranche (5yr)", legendtext = c( "Theoretical CDF"),xlab = "Tranche Loss (%)", xlim = c(0,1))
+cdfcomp(list( beta_lossPropDist.senior_normal_fit), main = "Senior Tranche (5yr)", legendtext = c( "Theoretical CDF"),xlab = "Tranche Loss (%)",xlim = c(0,1))
