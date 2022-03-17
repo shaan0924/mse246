@@ -417,23 +417,38 @@ colnames(projections) = c("Metrics", "Period", "State", "Projection")
 
 growth_rate = (GDP$GDP[GDP$DATE == as.Date("2013-01-01")]/GDP$GDP[GDP$DATE == (as.Date("2013-01-01") %m-% years(10))])^(12/60) - 1
 projections = rbind(projections, c("GDP", "1yr", "NA", ((growth_rate + 1)^1 * GDP$GDP[GDP$DATE == as.Date("2013-01-01")])))
+projections = rbind(projections, c("GDP", "2yr", "NA", ((growth_rate + 1)^2 * GDP$GDP[GDP$DATE == as.Date("2013-01-01")])))
+projections = rbind(projections, c("GDP", "3yr", "NA", ((growth_rate + 1)^3 * GDP$GDP[GDP$DATE == as.Date("2013-01-01")])))
+projections = rbind(projections, c("GDP", "4yr", "NA", ((growth_rate + 1)^4 * GDP$GDP[GDP$DATE == as.Date("2013-01-01")])))
 projections = rbind(projections, c("GDP", "5yr", "NA", ((growth_rate + 1)^5 *GDP$GDP[GDP$DATE == as.Date("2013-01-01")])))
 
 growth_rate = (tempSP500$GSPC.price[tempSP500$month.bin == Last_Date]/tempSP500$GSPC.price[tempSP500$month.bin == (Last_Date %m-% years(10))])^(12/120) - 1
 projections = rbind(projections, c("SP500", "1yr", "NA", ((growth_rate + 1)^1 * tempSP500$GSPC.price[tempSP500$month.bin == Last_Date])))
+projections = rbind(projections, c("SP500", "2yr", "NA", ((growth_rate + 1)^2 * tempSP500$GSPC.price[tempSP500$month.bin == Last_Date])))
+projections = rbind(projections, c("SP500", "4yr", "NA", ((growth_rate + 1)^3 * tempSP500$GSPC.price[tempSP500$month.bin == Last_Date])))
+projections = rbind(projections, c("SP500", "3yr", "NA", ((growth_rate + 1)^4 * tempSP500$GSPC.price[tempSP500$month.bin == Last_Date])))
 projections = rbind(projections, c("SP500", "5yr", "NA", ((growth_rate + 1)^5 * tempSP500$GSPC.price[tempSP500$month.bin == Last_Date])))
 
 growth_rate = (FEDFUNDS$FEDFUNDS[FEDFUNDS$DATE == Last_Date]/FEDFUNDS$FEDFUNDS[FEDFUNDS$DATE == (Last_Date %m-% years(10))])^(12/120) - 1
 projections = rbind(projections, c("FEDFUNDS", "1yr", "NA", ((growth_rate + 1)^1 * FEDFUNDS$FEDFUNDS[FEDFUNDS$DATE == Last_Date])))
+projections = rbind(projections, c("FEDFUNDS", "2yr", "NA", ((growth_rate + 1)^2 * FEDFUNDS$FEDFUNDS[FEDFUNDS$DATE == Last_Date])))
+projections = rbind(projections, c("FEDFUNDS", "3yr", "NA", ((growth_rate + 1)^3 * FEDFUNDS$FEDFUNDS[FEDFUNDS$DATE == Last_Date])))
+projections = rbind(projections, c("FEDFUNDS", "4yr", "NA", ((growth_rate + 1)^4 * FEDFUNDS$FEDFUNDS[FEDFUNDS$DATE == Last_Date])))
 projections = rbind(projections, c("FEDFUNDS", "5yr", "NA", ((growth_rate + 1)^5 * FEDFUNDS$FEDFUNDS[FEDFUNDS$DATE == Last_Date])))
 
 growth_rate = (CPI$CPIAUCSL[CPI$DATE == Last_Date]/CPI$CPIAUCSL[CPI$DATE == (Last_Date %m-% years(10))])^(12/120) - 1
 projections = rbind(projections, c("CPI", "1yr", "NA", ((growth_rate + 1)^1 * CPI$CPIAUCSL[CPI$DATE == Last_Date])))
+projections = rbind(projections, c("CPI", "2yr", "NA", ((growth_rate + 1)^2 * CPI$CPIAUCSL[CPI$DATE == Last_Date])))
+projections = rbind(projections, c("CPI", "3yr", "NA", ((growth_rate + 1)^3 * CPI$CPIAUCSL[CPI$DATE == Last_Date])))
+projections = rbind(projections, c("CPI", "4yr", "NA", ((growth_rate + 1)^4 * CPI$CPIAUCSL[CPI$DATE == Last_Date])))
 projections = rbind(projections, c("CPI", "5yr", "NA", ((growth_rate + 1)^5 * CPI$CPIAUCSL[CPI$DATE == Last_Date])))
 
 for (state in unique(UnemploymentUSbyState$State)){
   growth_rate = (UnemploymentUSbyState$UR[UnemploymentUSbyState$DATE == Last_Date & UnemploymentUSbyState$State == state ]/UnemploymentUSbyState$UR[UnemploymentUSbyState$DATE == (Last_Date %m-% years(10)) & UnemploymentUSbyState$State == state])^(12/120) - 1
   projections = rbind(projections, c("UR", "1yr", state, ((growth_rate + 1)^1 * UnemploymentUSbyState$UR[UnemploymentUSbyState$DATE == Last_Date & UnemploymentUSbyState$State == state])))
+  projections = rbind(projections, c("UR", "2yr", state, ((growth_rate + 1)^2 * UnemploymentUSbyState$UR[UnemploymentUSbyState$DATE == Last_Date & UnemploymentUSbyState$State == state])))
+  projections = rbind(projections, c("UR", "3yr", state, ((growth_rate + 1)^3 * UnemploymentUSbyState$UR[UnemploymentUSbyState$DATE == Last_Date & UnemploymentUSbyState$State == state])))
+  projections = rbind(projections, c("UR", "4yr", state, ((growth_rate + 1)^4 * UnemploymentUSbyState$UR[UnemploymentUSbyState$DATE == Last_Date & UnemploymentUSbyState$State == state])))
   projections = rbind(projections, c("UR", "5yr", state, ((growth_rate + 1)^5 * UnemploymentUSbyState$UR[UnemploymentUSbyState$DATE == Last_Date& UnemploymentUSbyState$State == state])))
 }
 colnames(projections) = c("Metrics", "Period", "State", "Projection")
@@ -606,23 +621,43 @@ cdfcomp(list( beta_lossPropDist.senior_normal_fit), main = "Senior Tranche (1yr)
 ###############
 #5yr Period VaR
 
-#Adding Projections
-portfolio$LogGDP = (log(as.numeric(projections$Projection[projections$Metrics == "GDP" & projections$Period == "5yr"])) - mean(log(modified_data$GDP)))/ sd(log(modified_data$GDP))
-portfolio$LogSP500 = (log(as.numeric(projections$Projection[projections$Metrics == "SP500" & projections$Period == "5yr"])) - mean(log(modified_data$GSPC.price)))/ sd(log(modified_data$GSPC.price))
-portfolio$FedFunds = (as.numeric(projections$Projection[projections$Metrics == "FEDFUNDS" & projections$Period == "5yr"]) - mean(modified_data$FedFunds))/ sd(modified_data$FedFunds)
-portfolio$LogCPI = (log(as.numeric(projections$Projection[projections$Metrics == "CPI" & projections$Period == "5yr"])) - mean(log(modified_data$CPI)))/ sd(log(modified_data$CPI))
+portfolio$LogGDP = (log(as.numeric(projections$Projection[projections$Metrics == "GDP" & projections$Period == "1yr"])) - mean(log(modified_data$GDP)))/ sd(log(modified_data$GDP))
+portfolio$LogSP500 = (log(as.numeric(projections$Projection[projections$Metrics == "SP500" & projections$Period == "1yr"])) - mean(log(modified_data$GSPC.price)))/ sd(log(modified_data$GSPC.price))
+portfolio$FedFunds = (as.numeric(projections$Projection[projections$Metrics == "FEDFUNDS" & projections$Period == "1yr"]) - mean(modified_data$FedFunds))/ sd(modified_data$FedFunds)
+portfolio$LogCPI = (log(as.numeric(projections$Projection[projections$Metrics == "CPI" & projections$Period == "1yr"])) - mean(log(modified_data$CPI)))/ sd(log(modified_data$CPI))
 temp = rename(projections, BorrState = State)
-temp = temp[temp$Period == "5yr",]
+temp = temp[temp$Period == "1yr",]
 temp = merge(x=portfolio,y=temp,by=c("BorrState"))
 portfolio$URinBorrState =  (as.numeric(temp$Projection) - mean(modified_data$URinBorrState))/ sd(modified_data$URinBorrState)
 temp = rename(projections, ProjectState = State)
-temp = temp[temp$Period == "5yr",]
+temp = temp[temp$Period == "1yr",]
 temp = merge(x=portfolio,y=temp,by=c("ProjectState"))
 portfolio$URinProjectState =  (as.numeric(temp$Projection) - mean(modified_data$URinProjectState))/ sd(modified_data$URinProjectState)
-portfolio$Age =  (portfolio$Age_Raw + 5 - mean(modified_data$Age))/ sd(modified_data$Age)
+portfolio$Age =  (portfolio$Age_Raw + 1 - mean(modified_data$Age))/ sd(modified_data$Age)
+
+portfolio_5yr = data.frame(matrix(ncol = ncol(portfolio) + 1 , nrow = 0))
+colnames(portfolio_5yr) = c(colnames(portfolio), "Projection_Year")
+for (i in 1:5){
+  temp = portfolio
+  temp$LogGDP = (log(as.numeric(projections$Projection[projections$Metrics == "GDP" & projections$Period == paste(i,"yr", sep = "")])) - mean(log(modified_data$GDP)))/ sd(log(modified_data$GDP))
+  temp$LogSP500 = (log(as.numeric(projections$Projection[projections$Metrics == "SP500" & projections$Period == paste(i,"yr", sep = "")])) - mean(log(modified_data$GSPC.price)))/ sd(log(modified_data$GSPC.price))
+  temp$FedFunds = (as.numeric(projections$Projection[projections$Metrics == "FEDFUNDS" & projections$Period == paste(i,"yr", sep = "")]) - mean(modified_data$FedFunds))/ sd(modified_data$FedFunds)
+  temp$LogCPI = (log(as.numeric(projections$Projection[projections$Metrics == "CPI" & projections$Period == paste(i,"yr", sep = "")])) - mean(log(modified_data$CPI)))/ sd(log(modified_data$CPI))
+  temp2 = rename(projections, BorrState = State)
+  temp2 = temp2[temp2$Period == paste(i,"yr", sep = ""),]
+  temp2 = merge(x=temp,y=temp2,by=c("BorrState"))
+  temp$URinBorrState =  (as.numeric(temp2$Projection) - mean(modified_data$URinBorrState))/ sd(modified_data$URinBorrState)
+  temp2 = rename(projections, ProjectState = State)
+  temp2 = temp2[temp2$Period == paste(i,"yr", sep = ""),]
+  temp2 = merge(x=portfolio,y=temp2,by=c("ProjectState"))
+  temp$URinProjectState =  (as.numeric(temp2$Projection) - mean(modified_data$URinProjectState))/ sd(modified_data$URinProjectState)
+  temp$Age =  (temp$Age_Raw + i - mean(modified_data$Age))/ sd(modified_data$Age)
+  temp$Projection_Year = i
+  portfolio_5yr = rbind(portfolio_5yr, temp)
+}
 
 #Training best classification model
-test_data = subset(portfolio, select = -c(ApprovalDate, Date, Size, GrossChargeOffAmount, Index, BorrState, ProjectState, Age_Raw))
+test_data = subset(portfolio_5yr, select = -c(ApprovalDate, Date, Size, GrossChargeOffAmount, Index, BorrState, ProjectState, Age_Raw, Projection_Year))
 x_test = model.matrix(Default ~., test_data)[, -1]
 prediction_test = predict(model_L1, newx = x_test, s = best_L1_lambda, type = "response")
 hist(prediction_test, main= NULL, xlab="Best L1 Model Default Probability" )
@@ -632,16 +667,27 @@ N = 10000
 beta_lossDist = vector()
 linear_lossDist = vector()
 for (j in 1:N){
+  defaults = vector()
+  temp_beta_lossDist = 0
+  temp_linear_lossDist = 0
   U = runif(1,min = min(prediction_test), max = max(prediction_test))
-  sample = prediction_test[prediction_test>U]
-  sample_sizes = portfolio$Size[prediction_test>U]
-  
-  beta_lossProp_sample = rbeta(length(sample), train_lossPropDist_beta$estimate[1], train_lossPropDist_beta$estimate[2])
-  beta_lossDist = append(beta_lossDist, -sum(beta_lossProp_sample*sample_sizes))
-  
-  linear_lossProp_sample = predict(loss_at_default_linear_model, test_data[prediction_test>U,])
-  linear_lossProp_sample = as.vector(linear_lossProp_sample)
-  linear_lossDist = append(linear_lossDist, -sum(linear_lossProp_sample*sample_sizes))
+  for (i in 1:5){
+    
+    sample = prediction_test[(prediction_test>U) & (portfolio_5yr$Projection_Year == i) & !(portfolio_5yr$Index %in% defaults)]
+    sample_sizes = portfolio_5yr$Size[(prediction_test>U) & (portfolio_5yr$Projection_Year == i) & !(portfolio_5yr$Index %in% defaults)]
+    
+    beta_lossProp_sample = rbeta(length(sample), train_lossPropDist_beta$estimate[1], train_lossPropDist_beta$estimate[2])
+    temp_beta_lossDist = temp_beta_lossDist -sum(beta_lossProp_sample*sample_sizes)
+    
+    linear_lossProp_sample = predict(loss_at_default_linear_model, test_data[(prediction_test>U) & (portfolio_5yr$Projection_Year == i) & !(portfolio_5yr$Index %in% defaults),])
+    linear_lossProp_sample = as.vector(linear_lossProp_sample)
+    temp_linear_lossDist = temp_linear_lossDist -sum(linear_lossProp_sample*sample_sizes)
+    
+    defaults = append(defaults, portfolio_5yr$Index[prediction_test>U & portfolio_5yr$Projection_Year == i])
+    defaults = unique(defaults)
+  }
+  beta_lossDist = append(beta_lossDist, temp_beta_lossDist)
+  linear_lossDist = append(linear_lossDist, temp_linear_lossDist)
 }
 
 #Nonparametric VaR
@@ -680,7 +726,7 @@ hist(beta_lossDist, main = NULL, xlab="Portfolio Loss")
 plot(beta_lossDist_normal_fit)
 
 beta_lossDist_log = log(-beta_lossDist)
-beta_lossDist_log[beta_lossDist_log = "-inf"] = 0
+beta_lossDist_log[!is.finite(beta_lossDist_log)] = 0
 beta_lossDist_log_normal_fit = fitdistrplus::fitdist(beta_lossDist_log, "norm")
 hist(beta_lossDist_log, main = NULL, xlab="Portfolio Loss")
 plot(beta_lossDist_log_normal_fit)
