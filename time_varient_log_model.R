@@ -12,7 +12,7 @@ library(fitdistrplus)
 library(stats)
 library("ROSE")
 
-setwd("/Users/jackparkin/Desktop/MS&E 246/Project")
+#setwd("/Users/jackparkin/Desktop/MS&E 246/Project")
 setwd("/Users/sihguat/Desktop/MSE_246/mse246")
 
 ###################
@@ -360,7 +360,7 @@ sqrt(mean((default_test_data$LossProp - prediction)^2))
 ################################
 #Loss at Default Beta Model
 train_lossProp_Dist = default_train_data$LossProp[default_train_data$LossProp <= 1]
-train_lossPropDist_beta = fitdist(train_lossProp_Dist, "beta")
+train_lossPropDist_beta = fitdistrplus::fitdist(train_lossProp_Dist, "beta")
 
 numBins = round((max(train_lossProp_Dist) - min(train_lossProp_Dist))/(2*IQR(train_lossProp_Dist)/(length(train_lossProp_Dist)^(1/3))))
 hist(train_lossProp_Dist, breaks =  numBins, main = "Histogram of Loan Loss Proportion at Default", xlab="Proportion of Loan Loss at Default", ylab="Train Count")
@@ -493,7 +493,6 @@ for (j in 1:N){
   linear_lossProp_sample = as.vector(linear_lossProp_sample)
   linear_lossDist = append(linear_lossDist, -sum(linear_lossProp_sample*sample_sizes))
 }
-
 #Nonparametric VaR
 VaRs = data.frame(matrix(ncol = 6, nrow = 0))
 colnames(VaRs) = c("Type", "Loss at Default Model", "95% VaR", "99% VaR", "95% Avg. VaR", "99% Avg. VaR")
@@ -530,7 +529,7 @@ hist(beta_lossDist, main = NULL, xlab="Portfolio Loss")
 plot(beta_lossDist_normal_fit)
 
 beta_lossDist_log = log(-beta_lossDist)
-beta_lossDist_log[beta_lossDist_log = "-inf"] = 0
+beta_lossDist_log[!is.finite(beta_lossDist_log)] = 0
 beta_lossDist_log_normal_fit = fitdistrplus::fitdist(beta_lossDist_log, "norm")
 hist(beta_lossDist_log, main = NULL, xlab="Portfolio Loss")
 plot(beta_lossDist_log_normal_fit)
@@ -552,6 +551,7 @@ abline(v = log(Avg_VaR_99), col="red", lty = 2, lwd = 3)
 legend(x = "bottomleft", legend = c("VaR 95% Level", "VaR 99% Level", "Avg VaR 95% Level", "Avg VaR 99% Level"), lty = c(1, 1, 2, 2), col = c("blue", "red", "blue", "red"), lwd = 3)
 
 linear_lossDist_log = log(-linear_lossDist)
+linear_lossDist_log[!is.finite(linear_lossDist_log)] = 0
 linear_lossDist_log_normal_fit = fitdistrplus::fitdist(linear_lossDist_log, "norm")
 hist(linear_lossDist_log, main = NULL, xlab="Portfolio Loss")
 plot(linear_lossDist_log_normal_fit)
@@ -600,7 +600,7 @@ beta_lossPropDist.junior_normal_fit = fitdistrplus::fitdist(beta_lossPropDist.ju
 hist(beta_lossPropDist.junior, main = NULL, xlab="Portfolio Loss")
 plot(beta_lossPropDist.junior_normal_fit)
 
-linear_lossPropDist.junior_normal_fit = fitdistrplus::fitdist(linear_lossDist.junior, "norm")
+linear_lossPropDist.junior_normal_fit = fitdistrplus::fitdist(linear_lossPropDist.junior, "norm")
 hist(linear_lossPropDist.junior, main = NULL, xlab="Portfolio Loss")
 plot(linear_lossPropDist.junior_normal_fit)
 
@@ -660,7 +660,8 @@ for (i in 1:5){
 test_data = subset(portfolio_5yr, select = -c(ApprovalDate, Date, Size, GrossChargeOffAmount, Index, BorrState, ProjectState, Age_Raw, Projection_Year))
 x_test = model.matrix(Default ~., test_data)[, -1]
 prediction_test = predict(model_L1, newx = x_test, s = best_L1_lambda, type = "response")
-hist(prediction_test, main= NULL, xlab="Best L1 Model Default Probability" )
+
+hist(defaults$prediction, main= NULL, xlab="Best L1 Model Default Probability" )
 
 #Inverse Sampling
 N = 10000
@@ -670,9 +671,8 @@ for (j in 1:N){
   defaults = vector()
   temp_beta_lossDist = 0
   temp_linear_lossDist = 0
-  U = runif(1,min = min(prediction_test), max = max(prediction_test))
   for (i in 1:5){
-    
+    U = runif(1,min = min(prediction_test), max = max(prediction_test))
     sample = prediction_test[(prediction_test>U) & (portfolio_5yr$Projection_Year == i) & !(portfolio_5yr$Index %in% defaults)]
     sample_sizes = portfolio_5yr$Size[(prediction_test>U) & (portfolio_5yr$Projection_Year == i) & !(portfolio_5yr$Index %in% defaults)]
     
@@ -794,7 +794,7 @@ beta_lossPropDist.junior_normal_fit = fitdistrplus::fitdist(beta_lossPropDist.ju
 hist(beta_lossPropDist.junior, main = NULL, xlab="Portfolio Loss")
 plot(beta_lossPropDist.junior_normal_fit)
 
-linear_lossPropDist.junior_normal_fit = fitdistrplus::fitdist(linear_lossDist.junior, "norm")
+linear_lossPropDist.junior_normal_fit = fitdistrplus::fitdist(linear_lossPropDist.junior, "norm")
 hist(linear_lossPropDist.junior, main = NULL, xlab="Portfolio Loss")
 plot(linear_lossPropDist.junior_normal_fit)
 
